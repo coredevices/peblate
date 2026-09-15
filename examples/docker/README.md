@@ -89,3 +89,9 @@ retries, timeouts, and cleanup using a disposable repository and a mocked queue.
 Celery worker to finish, so run it after restarting the updated web and workers.
 Both use the same `weblate shell` command above. The example schedules hourly
 cleanup and shares job files through its existing Weblate data volume.
+
+## Translation sources
+
+Use stock PO format and a repository POT template. Run `source_import_smoke.py`
+with the same `weblate shell` command to test native source uploads and language
+creation in an isolated component. See the [source guide](../../docs/source-sync.md).

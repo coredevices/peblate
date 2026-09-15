@@ -116,6 +116,6 @@ current Weblate permissions. Failed or stalled jobs can be retried with a fresh
 snapshot. Checks and builds have time limits; the hourly cleanup task removes
 results after 24 hours.
 
-The [source synchronization draft](docs/source-sync.md) describes the firmware CI
-artifact, the service-owned POT boundary, and the remaining Weblate integration
-needed before hosted uploads can be enabled.
+The [source import guide](docs/source-sync.md) describes native Weblate uploads
+of release-generated POT files. Source templates are committed alongside catalogs.
+Hosted release uploads remain to be connected.

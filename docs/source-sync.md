@@ -1,76 +1,61 @@
-# Source-string synchronization draft
+# Released translation sources
 
-This integration is not enabled and requires no hosted instance yet. The firmware
-side prepares a `translation-source` CI artifact only after a successful `v*`
-release. Regular pushes, PRs and nightly builds do not update translation sources. The current local Weblate demo
-continues using its existing source catalog; this draft does not replace it.
+Use stock Weblate's PO format with `new_base=pebbleos.pot` and the regional
+catalog mask `*/tintin.po`. The release-generated POT is committed to
+`pebbleos-translations` alongside catalogs. It is the template for new languages;
+standalone pack builds still use only the selected language's catalog and assets.
 
-## Ownership
+After a successful firmware release, CI can upload its merged POT to:
 
-- **PebbleOS CI:** extract and merge the normal firmware board catalogs, normalize
-  volatile headers, and provide the POT plus its hash and firmware revision.
-- **Weblate configuration:** dedicated component-scoped CI account, source-update
-  permissions, HTTPS endpoint, and repository synchronization settings.
-- **Peblate:** receive and retain the latest source snapshot in service storage,
-  coordinate merges and new-language creation, and report import status.
-- **pebbleos-translations:** updated regional PO catalogs and existing fonts/maps.
-  No checked-in POT, service code, or firmware dependency.
+```text
+POST /api/translations/pebbleos/watch/en/file/
+Authorization: Token <Weblate service-account token>
 
-Only the POT is uploaded. Revision and SHA-256 travel as request metadata; built-in
-font coverage remains the versioned coverage data already used by the tools.
+multipart fields:
+  method=source
+  file=<released pebbleos.pot>
+```
 
-## Why the stock endpoint is not enough yet
+Weblate commits pending translations, merges source changes into existing PO
+files, updates the repository POT, and refreshes its translation index. Native
+new-language creation uses that updated template. Weblate also owns Git sync;
+configure its push URL and credentials separately. No custom Peblate source API,
+format, database template, or importer is required.
 
-Weblate 2026.9.1 offers `method=source` on the translation file upload API. Its
-`Translation.handle_source` merges every non-source catalog and, when `new_base`
-is configured, replaces that file in the component checkout. The local example
-uses `new_base=source.pot`. That would violate the intended repository boundary.
+Use a dedicated Weblate account restricted to the component, with source-upload
+permissions. Keep its token in CI secrets. Only successful upstream release jobs
+may upload; regular pushes, PRs, and nightlies must not change translation sources.
 
-Setting `new_base` to an empty string avoids that file write, but native PO
-language creation requires a base file. Therefore, do not enable the native upload
-against this demo or simply clear its template setting. Do not monkey-patch
-Weblate or temporarily swap component settings around a request.
+## Configure release delivery
 
-The next implementation should establish a narrow supported extension for
-new-language creation from a service-owned POT. Evaluate a registered PO format
-extension's language-creation hook against the pinned Weblate version. If the
-necessary context cannot be supplied cleanly, propose an upstream hook before
-introducing a broad override. The existing native source-merge operation can be
-reused only after its commit, failure, and retry behavior is verified for that
-configuration.
+The replacement firmware workflow prepares the merged POT and calls the native
+API after the release job succeeds. Delivery is opt-in:
 
-API reference: [Weblate 2026.9.1](https://docs.weblate.org/en/weblate-2026.9.1/api.html).
+- Create a GitHub environment named `translations`, restricted to release tags.
+- Set environment variable `WEBLATE_SOURCE_URL` to the full HTTPS English source
+  upload URL shown above (including its trailing slash).
+- Store the dedicated Weblate account token as environment secret `WEBLATE_TOKEN`.
+- Set repository variable `WEBLATE_UPLOAD_ENABLED=true` when the service is ready.
+- Configure Weblate's Git push access to the translations repository separately.
 
-## Proposed receiver contract (not implemented)
+Uploads share one concurrency group and do not cancel an active import. Immediately
+before uploading, CI checks all published `v*` releases and skips any run superseded
+by a later publication. This includes prereleases and orders by publication time,
+not version number; manually republishing an old version needs operator care.
+Temporary HTTP failures receive bounded retries; permanent errors fail the job.
+The retained source artifact allows inspection without contacting Weblate.
 
-1. Authenticate a dedicated CI account and check access to the configured component.
-2. Accept one bounded UTF-8 POT and verify its SHA-256, syntax, contexts, plurals,
-   format flags, and absence of translated text before touching catalogs.
-3. Retain the immutable input in service storage. Persist its firmware revision,
-   hash, actor and import status. Identical successful content is a no-op.
-4. Serialize imports per component on existing Weblate workers. Reject an older
-   revision using verified source history or an agreed monotonic CI delivery
-   sequence; hashes alone do not establish ordering.
-5. Flush saved translations, merge all regional catalogs under the repository
-   lock, and commit only changed PO files. Preserve translations for unchanged
-   messages; obsolete removed messages and flag changed matches for review.
-6. Promote the new service-owned template only after every merge and repository
-   update succeeds. New languages use that same template and the configured
-   regional locale naming. Failures retain the previous template and allow retry.
-7. Existing pack jobs keep their captured inputs. Imports and new snapshots use
-   the same repository lock so readers cannot capture a partial merge.
+Hosting and credentials are not configured yet. Native source uploads can be
+repeated, but they are not transactional across all catalogs and offer no custom
+recovery journal. Check Weblate repository status after a failed merge before
+retrying. A successful HTTP response can precede Weblate's background index refresh.
 
-Before enabling uploads, test an added string, removed string, changed context,
-plural change, saved translator edits, duplicate request, stale revision,
-concurrent pack build, merge failure, service restart, and new-language creation.
-Verify that no font/map changes or POT files enter Git. Include the latest source
-snapshot and import receipts in the deployment's backup/restore procedure.
+Source updates do not publish language packs. Review and pack publication remain
+separate work.
 
-## Hosting activation, later
+## Local verification
 
-The firmware draft has **no network upload step**. Add it only after the receiver
-and tests above exist. Require an explicit enable variable, a protected deployment
-environment, HTTPS URL and scoped token. Restrict delivery to successful releases from the upstream `v*` tag workflow;
-regular pushes, nightlies, PRs and forks must not deliver sources.
-A failed delivery must fail visibly and be safe to rerun. Pack publication is a
-separate operation and is not authorized by importing source strings.
+Run `examples/docker/source_import_smoke.py` through `weblate shell`. It uses an
+isolated local component to check the native source API, saved translations,
+contexts and plurals, repeated uploads, and regional new-language creation.
+The running demo's POT contains its existing test strings, not a firmware release.
