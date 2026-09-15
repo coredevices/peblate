@@ -13,6 +13,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.staticfiles import finders
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.db.models import Q
+from django.http import HttpResponse, JsonResponse
 from django.test import Client, override_settings
 from weblate.trans.models import Component
 from weblate.vcs.git import LocalRepository
@@ -20,6 +21,8 @@ from weblate.vcs.git import LocalRepository
 from peblate import views
 from peblate.asset_store import AssetStore
 from peblate.checks import configuration_checks
+from peblate.models import LanguageJob
+from peblate.tasks import run_language_job
 from peblate.views import asset_path, mapping_for
 
 asset_temp = tempfile.TemporaryDirectory(prefix="peblate-test-")
@@ -61,6 +64,32 @@ def test_language_store(code):
 store_patch = patch("peblate.views.language_store", test_language_store)
 store_patch.start()
 
+
+def run_job(client, path, data):
+    with patch("peblate.job_views.run_language_job.apply_async"):
+        response = client.post(path, {**data, "format": "json"})
+    assert response.status_code == 202, response.content[:500]
+    job = response.json()
+    with (
+        patch("peblate.tasks.language_store", test_language_store),
+        override_settings(PEBLATE_CACHE_ROOT=str(views.CACHE_ROOT)),
+    ):
+        run_language_job.run(job["id"])
+        result = client.get(job["status_url"]).json()
+        assert result["status"] == "succeeded", result
+        if result["download_url"]:
+            download = client.get(result["download_url"])
+            response = HttpResponse(
+                b"".join(download.streaming_content),
+                headers={"Content-Disposition": download["Content-Disposition"]},
+            )
+        else:
+            response = JsonResponse(result["report"])
+            response.json = lambda: result["report"]
+    LanguageJob.objects.filter(pk=job["id"]).delete()
+    return response
+
+
 assert views.font_assignment("fr", {"name": "GOTHIC_14_EXTENDED", "file": ""}) == {
     "font_name": None,
     "license_name": None,
@@ -82,7 +111,7 @@ for path in (
     if path.startswith("/translate/"):
         assert b'id="pebble-editor-panel-template"' in response.content
     print(path, response.status_code)
-response = client.post("/pebble/fr/validate/", {"format": "json"})
+response = run_job(client, "/pebble/fr/validate/", {"format": "json"})
 assert response.status_code == 200, response.content[:500]
 assert response.json()["ok"], response.json()
 print("French validation:", response.json()["progress"])
@@ -102,14 +131,14 @@ with Path("/prototype/hebrew-fonts/Heebo-Regular.ttf").open("rb") as font:
 assert response.status_code == 200, response.content[:500]
 assert response.json()["slot"] == "GOTHIC_18_EXTENDED"
 assert client.get(response.json()["font_url"]).status_code == 200
-response = client.post("/pebble/he_IL/validate/", {"format": "json"})
+response = run_job(client, "/pebble/he_IL/validate/", {"format": "json"})
 assert response.status_code == 200, response.content[:500]
 report = response.json()
 assert report["ok"], report
 slot = next(font for font in report["fonts"] if font["slot"] == "GOTHIC_18_EXTENDED")
 assert slot["uncovered_characters"] == [], slot
 print("Uploaded Hebrew font: coverage passed for body text")
-response = client.post("/pebble/he_IL/validate/", {"action": "build"})
+response = run_job(client, "/pebble/he_IL/validate/", {"action": "build"})
 assert response.status_code == 200, response.content[:500]
 assert response["Content-Disposition"] == 'attachment; filename="he_IL.pbl"'
 assert response.content[:4] == b"\x15\0\0\0"
@@ -201,7 +230,7 @@ subprocess.run(
     ],
     check=True,
 )
-response = client.post("/pebble/he_IL/validate/", {"action": "build"})
+response = run_job(client, "/pebble/he_IL/validate/", {"action": "build"})
 assert response.status_code == 200
 assert response.content == (output / "he_IL.pbl").read_bytes()
 assert not list(clone.rglob("*.pbf"))

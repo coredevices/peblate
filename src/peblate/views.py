@@ -7,8 +7,6 @@ import hashlib
 import json
 import os
 import re
-import subprocess
-import sys
 import tempfile
 from pathlib import Path
 
@@ -16,7 +14,7 @@ import freetype
 from django.conf import settings
 from django.contrib import messages
 from django.http import FileResponse, Http404, HttpResponse, JsonResponse
-from django.shortcuts import redirect, render
+from django.shortcuts import redirect
 from django.urls import reverse
 from django.views.decorators.http import require_POST
 from weblate.vcs.base import RepositoryError
@@ -25,7 +23,6 @@ from .permissions import require_capability
 from .weblate_adapter import (
     component,
     language_store,
-    saved_catalog,
     translation_for_code,
 )
 
@@ -235,71 +232,3 @@ def preview_font(request, code, slot):
             )
     except (ValueError, OSError, RuntimeError) as error:
         return HttpResponse(str(error), status=400, content_type="text/plain")
-
-
-def run_tools(translation, build=False):
-    saved_catalog(translation)
-    code = translation.language_code
-    store, catalog = language_store(code)
-    code = catalog.parent.name
-    store.ensure_mapping(catalog, code)
-    with tempfile.TemporaryDirectory(prefix="pebble-preview-") as temp:
-        root = Path(temp)
-        store.snapshot(catalog, code, root / code)
-        command = [
-            sys.executable,
-            "-m",
-            "pebble_language_tools.lang",
-            "--root",
-            str(root),
-            "check_lang",
-            "--lang",
-            code,
-            "--json",
-        ]
-        result = subprocess.run(
-            command, capture_output=True, text=True, timeout=90, check=False
-        )
-        report = json.loads(result.stdout)
-        if not build or not report["ok"]:
-            return report, None
-        subprocess.run(
-            [
-                sys.executable,
-                "-m",
-                "pebble_language_tools.lang",
-                "--root",
-                str(root),
-                "pack_lang",
-                "--lang",
-                code,
-                "--output",
-                str(root / "dist"),
-            ],
-            capture_output=True,
-            timeout=90,
-            check=True,
-        )
-        return report, (root / "dist" / f"{code}.pbl").read_bytes()
-
-
-@require_capability("validate")
-@require_POST
-def validate(request, code):
-    translation = translation_for(code)
-    try:
-        report, pack = run_tools(
-            translation, build=request.POST.get("action") == "build"
-        )
-    except (ValueError, OSError, RepositoryError, subprocess.SubprocessError) as error:
-        return HttpResponse(f"Validation could not finish: {error}", status=400)
-    if pack is not None:
-        response = HttpResponse(pack, content_type="application/octet-stream")
-        _, catalog = language_store(code)
-        response["Content-Disposition"] = (
-            f'attachment; filename="{catalog.parent.name}.pbl"'
-        )
-        return response
-    if request.POST.get("format") == "json":
-        return JsonResponse(report)
-    return render(request, "pebble/report.html", {"report": report, "code": code})

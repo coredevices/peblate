@@ -13,6 +13,7 @@ from django.test import Client
 from weblate.vcs.git import LocalRepository
 
 from peblate.asset_store import AssetStore
+from peblate.models import LanguageJob
 from peblate.permissions import capabilities
 from peblate.weblate_adapter import component, translation_for_code
 
@@ -53,6 +54,7 @@ with tempfile.TemporaryDirectory(prefix="peblate-permissions-") as temp:
 
     with (
         patch("peblate.views.language_store", test_store),
+        patch("peblate.job_views.run_language_job.apply_async"),
         patch("peblate.views.CACHE_ROOT", Path(temp) / "cache"),
     ):
         for role, expected in [
@@ -121,21 +123,22 @@ with tempfile.TemporaryDirectory(prefix="peblate-permissions-") as temp:
                 response = client.post(
                     "/pebble/he_IL/validate/", {"action": action, "format": "json"}
                 )
-                assert response.status_code == (200 if expected[2] else 403), (
+                assert response.status_code == (202 if expected[2] else 403), (
                     role,
                     action,
                     response.status_code,
                     response.content[:150],
                 )
+                if expected[2]:
+                    LanguageJob.objects.filter(pk=response.json()["id"]).delete()
             if not expected[1]:
                 with store.lock:
                     assert git(["rev-parse", "HEAD"]) == before
             if role == "french-only":
                 assert capabilities(user, translation_for_code("fr"))["upload"]
-                assert (
-                    client.post("/pebble/fr/validate/", {"format": "json"}).status_code
-                    == 200
-                )
+                response = client.post("/pebble/fr/validate/", {"format": "json"})
+                assert response.status_code == 202
+                LanguageJob.objects.filter(pk=response.json()["id"]).delete()
             print(role, "preview/upload/build:", expected)
         anonymous = Client()
         for path in (

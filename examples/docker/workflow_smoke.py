@@ -2,6 +2,7 @@
 
 import json
 import re
+import time
 from pathlib import Path
 
 from django.test import Client
@@ -62,7 +63,18 @@ assert reviewer.login(
 state = save(reviewer, review=True)
 assert state == 30, state
 print("Reviewer approved Italian Music; native state:", state)
-response = client.post("/pebble/it_IT/validate/", {"action": "build"})
-assert response.status_code == 200, response.content[:300]
+response = client.post("/pebble/it_IT/validate/", {"action": "build", "format": "json"})
+assert response.status_code == 202, response.content[:300]
+job = response.json()
+deadline = time.monotonic() + 60
+while job["status"] in ("queued", "running") and time.monotonic() < deadline:
+    time.sleep(1)
+    job = client.get(job["status_url"]).json()
+assert job["status"] == "succeeded" and job["download_url"], job
+response = client.get(job["download_url"])
+assert response.status_code == 200
 assert "it_IT.pbl" in response["Content-Disposition"]
-print("Translator downloaded it_IT.pbl from the newly created regional catalog")
+assert b"".join(response.streaming_content)[:4] == b"\x15\0\0\0"
+print(
+    "Real Celery worker built it_IT.pbl from the reviewed regional catalog", job["id"]
+)

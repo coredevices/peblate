@@ -4,3 +4,8 @@ PEBLATE_COMPONENT = "pebbleos/watch"
 PEBLATE_CACHE_ROOT = "/app/data/peblate-cache"
 # Local example only.
 EMAIL_BACKEND = "django.core.mail.backends.dummy.EmailBackend"
+
+CELERY_BEAT_SCHEDULE = {
+    **globals().get("CELERY_BEAT_SCHEDULE", {}),
+    "peblate-cleanup": {"task": "peblate.tasks.cleanup_jobs", "schedule": 3600.0},
+}

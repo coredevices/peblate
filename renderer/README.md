@@ -7,7 +7,7 @@ From this repository, with the sibling PebbleOS checkout:
 docker run --rm --platform linux/amd64 \
   -v "$PWD/../pebbleos:/fw:ro" -v "$PWD:/work" \
   emscripten/emsdk:4.0.15 sh -c \
-  'cmake -S /fw/tools/text2wasm -B /work/runtime/wasm-build && cmake --build /work/runtime/wasm-build --target text2wasm'
+  'emcmake cmake -S /fw/tools/text2wasm -B /work/runtime/wasm-build && cmake --build /work/runtime/wasm-build --target text2wasm'
 mkdir -p src/peblate/static/pebble/renderer
 cp runtime/wasm-build/dist/renderer.js src/peblate/static/pebble/renderer/
 cp runtime/wasm-build/dist/GOTHIC*.pbf src/peblate/static/pebble/renderer/

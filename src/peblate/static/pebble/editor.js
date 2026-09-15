@@ -13,6 +13,7 @@
   const targets = [...editor.querySelectorAll('textarea')];
   let active = targets[0];
   const initial = targets.map(target => target.value);
+  let activeJob = false;
   const validationForm = document.getElementById('pebble-validation-form');
   const saveHint = document.getElementById('pebble-save-hint');
   const compiled = new Map();
@@ -67,7 +68,7 @@
     const version = ++renderVersion;
     const slot = slots.find(slot => slot.name === style.value);
     const dirty = targets.some((target, index) => target.value !== initial[index]);
-    validationForm.querySelectorAll('button').forEach(button => button.disabled = dirty);
+    validationForm.querySelectorAll('button').forEach(button => button.disabled = dirty || activeJob);
     saveHint.textContent = dirty ? 'Save your translation in Weblate before checking or downloading.' : 'Checks and downloads use saved translations.';
     preview.hidden = true;
     canvas.hidden = false;
@@ -115,6 +116,8 @@
   });
   validationForm.addEventListener('submit', async event => {
     event.preventDefault();
+    if (activeJob) return;
+    activeJob = true;
     const status = document.getElementById('pebble-validation-status');
     const data = new FormData(validationForm);
     data.set('action', event.submitter.value);
@@ -123,14 +126,36 @@
     try {
       const response = await fetch(validationForm.getAttribute('action'), {method:'POST', body:data});
       await checkResponse(response);
-      if (response.headers.get('Content-Type').includes('application/octet-stream')) {
-        const url = URL.createObjectURL(await response.blob());
-        const link = document.createElement('a'); link.href=url;
-        link.download=response.headers.get('Content-Disposition').match(/filename="([^"]+)"/)[1];
-        link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
-        status.textContent = 'Draft downloaded. It has not been published.';
-      } else {
-        const report = await response.json(); status.replaceChildren();
+      let job = await response.json();
+      while (job.status === 'queued' || job.status === 'running') {
+        status.textContent = job.phase + '. ';
+        const progressLink = document.createElement('a');
+        progressLink.href = job.page_url; progressLink.textContent = 'Open job progress';
+        status.append(progressLink);
+        await new Promise(resolve => setTimeout(resolve, 1500));
+        const poll = await fetch(job.status_url, {cache: 'no-store'});
+        await checkResponse(poll); job = await poll.json();
+      }
+      status.replaceChildren();
+      const resultLink = document.createElement('a');
+      resultLink.href = job.page_url; resultLink.textContent = 'View job details or retry';
+      status.append(resultLink);
+      if (job.error) {
+        const failure = document.createElement('p'); failure.textContent = job.error;
+        status.append(failure);
+      }
+      if (job.download_url) {
+        const download = document.createElement('a'); download.href = job.download_url;
+        download.textContent = 'Download draft .pbl';
+        const item = document.createElement('p'); item.append(download); status.append(item);
+      }
+      if (job.snapshot_at) {
+        const snapshot = document.createElement('p');
+        snapshot.textContent = `Saved translations and fonts from ${new Date(job.snapshot_at).toLocaleString()}. Later edits need a new job. Drafts are not published.`;
+        status.append(snapshot);
+      }
+      if (job.report) {
+        const report = job.report;
         const heading = document.createElement('strong');
         heading.textContent = report.ok ? 'Build checks passed' : 'Needs attention'; status.append(heading);
         if (report.progress) {
@@ -150,8 +175,10 @@
           const item = document.createElement('p'); item.textContent='Text-font coverage passed. This does not check watch layout.'; status.append(item);
         }
       }
-    } catch(error) {status.textContent=error.message;}
-    finally {update();}
+    } catch(error) {
+      const errorText = document.createElement("p"); errorText.textContent = error.message; status.append(errorText);
+    }
+    finally {activeJob = false; update();}
   });
   update();
 })();

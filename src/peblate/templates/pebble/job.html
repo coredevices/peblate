@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block content %}
+<a href="{{ job.translation_url }}">Back to translating</a>
+<div class="card"><div class="card-header"><h4>Language pack job</h4></div><div class="card-body">
+<p>{{ job.phase }}</p>
+{% if job.status == "queued" or job.status == "running" %}
+<p>This page refreshes while the worker runs. You can keep translating in another tab.</p>
+<script>setTimeout(() => location.reload(), 2000);</script>
+{% endif %}
+{% if job.error %}<p role="alert">{{ job.error }}</p>{% endif %}
+{% if job.snapshot_at %}<p>Snapshot: {{ job.snapshot_at }}. Later edits need a new job.</p>{% endif %}
+{% if job.report.progress %}<p>{{ job.report.progress.translated }} / {{ job.report.progress.total }} strings translated.</p>{% endif %}
+{% for issue in job.report.issues %}<p>{{ issue.message }}</p>{% endfor %}
+{% if job.download_url %}<p><a href="{{ job.download_url }}">Download draft .pbl</a></p><p>This draft has not been published. Results expire after 24 hours.</p>{% endif %}
+{% if job.status == "failed" or job.status == "succeeded" %}
+<form method="post" action="{{ job.retry_url }}">{% csrf_token %}<input type="hidden" name="action" value="{{ job.operation }}"><button class="btn btn-primary" type="submit">Start a new job with saved changes</button></form>
+{% endif %}
+</div></div>
+{% endblock %}

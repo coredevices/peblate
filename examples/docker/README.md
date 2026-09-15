@@ -82,3 +82,10 @@ These are example accounts and settings for testing, not production provisioning
 saves “Music” as “Musica” through Weblate’s native editor, approves it as the
 reviewer, and downloads `it_IT.pbl`. It refuses to replace a different existing
 translation for that string. Run it with the same `weblate shell` command.
+
+`background_smoke.py` tests concurrent requests, fixed snapshots, access checks,
+retries, timeouts, and cleanup using a disposable repository and a mocked queue.
+`workflow_smoke.py` additionally queues a real job and waits for the installed
+Celery worker to finish, so run it after restarting the updated web and workers.
+Both use the same `weblate shell` command above. The example schedules hourly
+cleanup and shares job files through its existing Weblate data volume.

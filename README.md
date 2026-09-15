@@ -19,10 +19,14 @@ Add to Weblate's settings, after its existing settings:
 INSTALLED_APPS = ["peblate", *INSTALLED_APPS]
 ROOT_URLCONF = "peblate.urls"
 PEBLATE_COMPONENT = "pebbleos/watch"  # your project/component
-PEBLATE_CACHE_ROOT = "/var/lib/weblate/peblate"  # writable preview-cache directory
+PEBLATE_CACHE_ROOT = "/var/lib/weblate/peblate"  # shared by web and worker processes
+CELERY_BEAT_SCHEDULE = {
+    **globals().get("CELERY_BEAT_SCHEDULE", {}),
+    "peblate-cleanup": {"task": "peblate.tasks.cleanup_jobs", "schedule": 3600.0},
+}
 ```
 
-Run `weblate check`, collect static files using your normal Weblate deployment
+Run `weblate migrate` and `weblate check`, collect static files using your normal Weblate deployment
 procedure, and restart its web and worker processes. For the official Docker
 image, [the example](examples/docker/README.md) installs wheels in a thin derived
 image and supplies these settings. Weblate itself stays unmodified.
@@ -66,7 +70,7 @@ stable, so run the integration smoke test before upgrades.
 
 ## Remaining work
 
-Background jobs, complete watch-screen previews, automated source POT uploads, and
+Complete watch-screen previews, automated source POT uploads, and
 reviewed pack publication/mobile distribution. Fonts, licenses, and maps are versioned in the component’s repository; downloads
 are drafts. Automatic validation can later
 use a Weblate add-on event hook.
@@ -95,3 +99,23 @@ The example configures Weblate’s `posix_long` language-code style, so new cata
 folders include a country code (`de_DE`, `fr_FR`, `he_IL`, etc.). Downloads use the
 catalog folder’s locale too. `en_IL` remains English with Hebrew glyph coverage;
 it is not an alias for Hebrew.
+
+## Background checks and drafts
+
+Checks and draft builds run on Weblate's existing Celery workers. Web and worker
+processes must share `PEBLATE_CACHE_ROOT`. Keep the default Celery queue worker
+and beat scheduler running; no separate Peblate service is needed.
+
+The editor shows progress and links to a job page. Each job snapshots saved
+translations and fonts when the worker starts; later edits require a new job.
+Concurrent requests for the same operation by the same user reuse the active job.
+Completed drafts have an explicit download link and are never published.
+
+Results belong to the requesting user, and viewing or downloading them rechecks
+current Weblate permissions. Failed or stalled jobs can be retried with a fresh
+snapshot. Checks and builds have time limits; the hourly cleanup task removes
+results after 24 hours.
+
+The [source synchronization draft](docs/source-sync.md) describes the firmware CI
+artifact, the service-owned POT boundary, and the remaining Weblate integration
+needed before hosted uploads can be enabled.
