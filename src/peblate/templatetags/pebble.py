@@ -5,6 +5,7 @@ from django import template
 from django.templatetags.static import static
 from django.urls import reverse
 
+from peblate.permissions import capabilities
 from peblate.views import SLOTS, font_assignment, mapping_for
 from peblate.weblate_adapter import enabled_component
 
@@ -16,7 +17,7 @@ def pebble_editor_panel(context, unit):
     request = context["request"]
     if (
         not unit
-        or not request.user.is_superuser
+        or not capabilities(request.user, unit.translation)["preview"]
         or unit.translation.component.full_slug != enabled_component()
     ):
         return {"enabled": False}
@@ -43,6 +44,7 @@ def pebble_editor_panel(context, unit):
     ]
     return {
         "enabled": True,
+        "permissions": capabilities(request.user, unit.translation),
         "code": code,
         "slots": slots,
         "request": request,

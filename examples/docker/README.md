@@ -48,3 +48,37 @@ docker compose --env-file .env -f examples/docker/compose.yaml exec -T weblate \
 
 This refuses a component with a non-local repository or any Git remote, and skips
 styles that already have an assignment. It does not migrate the old service storage.
+
+## Test translator and reviewer accounts
+
+After bootstrap, configure the private disposable project and its native review workflow:
+
+```sh
+docker compose --env-file .env -f examples/docker/compose.yaml exec -T weblate \
+  weblate shell < examples/docker/setup_accounts.py
+docker cp pebble-weblate-prototype-weblate-1:/app/data/peblate-demo-accounts.json runtime/demo-accounts.json
+chmod 600 runtime/demo-accounts.json
+```
+
+The ignored credentials file contains random passwords for these non-admin users:
+
+- `peblate-translator`: translate, start languages, preview, upload fonts/licenses, and build drafts.
+- `peblate-reviewer`: the same actions plus native string approval.
+- `peblate-viewer`: read-only previews; no uploads, checks or builds.
+- `peblate-french-only`: translator permissions restricted to French.
+- `peblate-outsider`: no project access.
+
+This setup refuses repositories with remotes and never changes the administrator.
+Run the permission tests after setup (uploads use a disposable repository clone):
+
+```sh
+docker compose --env-file .env -f examples/docker/compose.yaml exec -T weblate \
+  weblate shell < examples/docker/permission_smoke.py
+```
+
+These are example accounts and settings for testing, not production provisioning.
+
+`workflow_smoke.py` additionally creates the Italian demo language if absent,
+saves “Music” as “Musica” through Weblate’s native editor, approves it as the
+reviewer, and downloads `it_IT.pbl`. It refuses to replace a different existing
+translation for that string. Run it with the same `weblate shell` command.

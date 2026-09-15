@@ -15,13 +15,13 @@ from pathlib import Path
 import freetype
 from django.conf import settings
 from django.contrib import messages
-from django.contrib.auth.decorators import user_passes_test
 from django.http import FileResponse, Http404, HttpResponse, JsonResponse
 from django.shortcuts import redirect, render
 from django.urls import reverse
 from django.views.decorators.http import require_POST
 from weblate.vcs.base import RepositoryError
 
+from .permissions import require_capability
 from .weblate_adapter import (
     component,
     language_store,
@@ -41,10 +41,6 @@ SLOTS = (
     ("GOTHIC_28_BOLD_EXTENDED", "Bold heading · 28 px"),
     ("GOTHIC_36_EXTENDED", "Large heading · 36 px"),
     ("GOTHIC_36_BOLD_EXTENDED", "Large bold heading · 36 px"),
-)
-# This local prototype deliberately shares access only with its admin account.
-extension_user = user_passes_test(
-    lambda user: user.is_authenticated and user.is_superuser
 )
 
 
@@ -87,17 +83,17 @@ def font_assignment(code, entry):
     }
 
 
-@extension_user
+@require_capability()
 def home(request):
     return redirect(component().get_absolute_url())
 
 
-@extension_user
+@require_capability("preview")
 def language(request, code):
     return redirect(translation_for(code).get_translate_url())
 
 
-@extension_user
+@require_capability("upload")
 @require_POST
 def upload_font(request, code):
     translation_for(code)
@@ -168,7 +164,7 @@ def upload_font(request, code):
     return redirect("pebble-language", code=code)
 
 
-@extension_user
+@require_capability("preview")
 def font_file(request, code, slot):
     translation_for(code)
     entry = next(
@@ -179,7 +175,7 @@ def font_file(request, code, slot):
     return FileResponse((asset_path(code, entry)).open("rb"), content_type="font/ttf")
 
 
-@extension_user
+@require_capability("preview")
 @require_POST
 def preview_font(request, code, slot):
     translation_for(code)
@@ -287,7 +283,7 @@ def run_tools(translation, build=False):
         return report, (root / "dist" / f"{code}.pbl").read_bytes()
 
 
-@extension_user
+@require_capability("validate")
 @require_POST
 def validate(request, code):
     translation = translation_for(code)

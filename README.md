@@ -28,8 +28,11 @@ image, [the example](examples/docker/README.md) installs wheels in a thin derive
 image and supplies these settings. Weblate itself stays unmodified.
 
 One component is supported per installation; give it a dedicated preview-cache directory.
-The current UI and endpoints remain **superuser-only**. Shared translator permissions
-are still to be implemented before a public deployment.
+Access follows Weblate’s component and language permissions. Preview needs
+`translation.download`; font changes also need `unit.edit` and `upload.perform`;
+validation and draft builds need `unit.edit`. Read-only viewers see disabled
+mutation controls, and every endpoint checks permissions independently. Source
+English is handled by firmware, so Peblate’s pack controls are hidden there.
 
 ## Build
 
@@ -63,7 +66,7 @@ stable, so run the integration smoke test before upgrades.
 
 ## Remaining work
 
-Translator permissions, background jobs, complete watch-screen previews, automated source POT uploads, and
+Background jobs, complete watch-screen previews, automated source POT uploads, and
 reviewed pack publication/mobile distribution. Fonts, licenses, and maps are versioned in the component’s repository; downloads
 are drafts. Automatic validation can later
 use a Weblate add-on event hook.
