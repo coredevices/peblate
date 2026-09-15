@@ -1,0 +1,41 @@
+{% if enabled %}
+<template id="pebble-editor-panel-template">
+<section class="card string-info" id="pebble-editor-panel" aria-label="Watch preview">
+  <div class="card-header"><h4 class="card-title">Watch preview</h4></div>
+  <div class="card-body">
+    <p class="text-body-secondary small">Follows the translation you’re editing.</p>
+    <label for="pebble-style" class="form-label">Preview text style</label>
+    <select id="pebble-style" class="form-select form-select-sm">{% for slot in slots %}<option value="{{ slot.name }}" {% if slot.name == 'GOTHIC_18_EXTENDED' %}selected{% endif %}>{{ slot.label }}</option>{% endfor %}</select>
+    <div class="pebble-watch"><div class="pebble-screen"><canvas id="pebble-fw-preview" width="144" height="168" aria-label="Firmware text preview"></canvas><div id="pebble-preview-text" dir="auto"></div></div></div>
+    <p id="pebble-font-status" class="small text-body-secondary"></p>
+    <p class="small text-body-secondary">Firmware text rendering in a sample 144 × 168 text box. This is not a complete watch screen.</p>
+    <hr>
+    <details id="pebble-font-details"><summary>Fonts for {{ language_name }}</summary>
+      <p class="small mt-2">Required characters come from this language and its translations automatically. Upload a font only when validation finds missing characters. You choose the font and must have permission to distribute it.</p>
+      <form id="pebble-font-form" method="post" enctype="multipart/form-data" action="{% url 'pebble-upload' code %}">
+        {% csrf_token %}<input type="hidden" name="format" value="json">
+        <label class="form-label small" for="pebble-font-slot">Use this font for</label>
+        <select id="pebble-font-slot" name="slot" class="form-select form-select-sm">{% for slot in slots %}<option value="{{ slot.name }}" {% if slot.name == 'GOTHIC_18_EXTENDED' %}selected{% endif %}>{{ slot.label }}</option>{% endfor %}</select>
+        <p id="pebble-current-font" class="small mt-2" role="status"></p>
+        <label class="form-label small mt-2" for="pebble-font-file">New TTF or OTF font</label>
+        <input type="file" id="pebble-font-file" class="form-control form-control-sm" name="font" accept=".ttf,.otf" required>
+        <label class="form-label small mt-2" for="pebble-font-license">Font license (text or PDF, required)</label>
+        <input type="file" id="pebble-font-license" name="license" class="form-control form-control-sm" accept=".txt,.md,.pdf" required>
+        <p class="small">Use the same font file for multiple styles if needed. Identical font and license files are stored once.</p>
+        <button class="btn btn-secondary btn-sm mt-2" type="submit">Upload font</button>
+        <p id="pebble-upload-status" class="small mt-2" role="status"></p>
+      </form>
+    </details>
+    <hr>
+    <h5>Language pack</h5>
+    <p id="pebble-save-hint" class="small text-body-secondary">Checks and downloads use saved translations.</p>
+    <form id="pebble-validation-form" action="{% url 'pebble-validate' code %}" method="post">
+      {% csrf_token %}<input type="hidden" name="format" value="json">
+      <div class="d-flex flex-wrap gap-2"><button type="submit" name="action" value="validate" class="btn btn-secondary btn-sm">Check language</button><button type="submit" name="action" value="build" class="btn btn-secondary btn-sm">Download draft</button></div>
+    </form>
+    <div id="pebble-validation-status" class="small mt-3" role="status"></div>
+  </div>
+</section>
+{{ slots|json_script:'pebble-slot-config' }}
+</template>
+{% endif %}

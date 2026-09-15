@@ -1,0 +1,8 @@
+{% extends "base.html" %}
+{% block content %}
+<a href="{% url 'pebble-language' code %}">Back to translating</a>
+<div class="card mt-3"><div class="card-header"><h4>Language pack checks</h4></div><div class="card-body">
+{% if report.ok %}<p>Build checks passed.</p>{% else %}<p>Needs attention.</p>{% endif %}
+{% for issue in report.issues %}<p>{{ issue.message }}</p>{% endfor %}
+</div></div>
+{% endblock %}

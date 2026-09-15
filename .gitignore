@@ -1,0 +1,12 @@
+.env
+runtime/
+examples/docker/fixtures/
+examples/docker/wheels/
+src/peblate/static/pebble/renderer/
+.venv/
+.ruff_cache/
+__pycache__/
+.DS_Store
+build/
+dist/
+*.egg-info/

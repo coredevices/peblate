@@ -1,0 +1,5 @@
+{% extends "translate.html" %}
+{% load static pebble %}
+{% block extra_styles %}{{ block.super }}<link rel="stylesheet" href="{% static 'pebble/editor.css' %}">{% endblock %}
+{% block extra_script %}{{ block.super }}<script defer src="{% static 'pebble/renderer/renderer.js' %}"></script><script defer src="{% static 'pebble/editor.js' %}"></script>{% endblock %}
+{% block content %}{{ block.super }}{% pebble_editor_panel unit %}{% endblock %}

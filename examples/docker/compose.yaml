@@ -1,0 +1,55 @@
+name: pebble-weblate-prototype
+services:
+  database:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: weblate
+      POSTGRES_USER: weblate
+      POSTGRES_PASSWORD: ${DATABASE_PASSWORD:?Run setup.py first}
+    volumes:
+      - database:/var/lib/postgresql/data
+    healthcheck:
+      test: [CMD-SHELL, pg_isready -U weblate]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+  cache:
+    image: valkey/valkey:8-alpine
+  weblate:
+    build: .
+    ports:
+      - '127.0.0.1:8088:8080'
+    depends_on:
+      database:
+        condition: service_healthy
+      cache:
+        condition: service_started
+    environment:
+      POSTGRES_DATABASE: weblate
+      POSTGRES_DB: weblate
+      POSTGRES_USER: weblate
+      POSTGRES_PASSWORD: ${DATABASE_PASSWORD}
+      POSTGRES_HOST: database
+      REDIS_HOST: cache
+      WEBLATE_SITE_DOMAIN: localhost:8088
+      WEBLATE_SITE_TITLE: Pebble translations
+      WEBLATE_ALLOWED_HOSTS: localhost,127.0.0.1,testserver
+      WEBLATE_ADMIN_NAME: Pebble prototype
+      WEBLATE_ADMIN_EMAIL: prototype@localhost.test
+      WEBLATE_ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      WEBLATE_REGISTRATION_OPEN: '0'
+      WEBLATE_EMAIL_BACKEND: django.core.mail.backends.console.EmailBackend
+      WEBLATE_SERVER_EMAIL: prototype@localhost.test
+      WEBLATE_DEFAULT_FROM_EMAIL: prototype@localhost.test
+      WEBLATE_WORKERS: '2'
+      CELERY_WORKER_CONCURRENCY: '1'
+    volumes:
+      - weblate:/app/data
+      - cache:/app/cache
+      - ./settings-override.py:/app/data/settings-override.py:ro
+      - ../../runtime/seed:/seed:ro
+      - ./fixtures:/prototype/hebrew-fonts:ro
+volumes:
+  database:
+  weblate:
+  cache:
