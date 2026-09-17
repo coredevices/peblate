@@ -1,0 +1,34 @@
+name: Deploy production
+
+on:
+  push:
+    branches: [main]
+    # Source, tests, packaging and this workflow deploy; documentation alone does not.
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: peblate-production-trigger
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: github.repository == 'coredevices/peblate' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Start the cluster build and deployment for this commit
+        env:
+          GH_TOKEN: ${{ secrets.CLUSTER_DEPLOY_TOKEN }}
+        run: |
+          set -euo pipefail
+          test -n "$GH_TOKEN" || { echo '::error::CLUSTER_DEPLOY_TOKEN is missing'; exit 1; }
+          jq -n --arg repository "$GITHUB_REPOSITORY" --arg ref "$GITHUB_REF" --arg sha "$GITHUB_SHA" \
+            '{event_type: "peblate-push", client_payload: {repository: $repository, ref: $ref, sha: $sha}}' \
+            | gh api --method POST repos/coredevices/pebble-cluster/dispatches --input -
+          echo "Build and deployment requested for $GITHUB_SHA." >> "$GITHUB_STEP_SUMMARY"
+          echo '[Watch build, tests and deployment](https://github.com/coredevices/pebble-cluster/actions/workflows/build-weblate.yml)' >> "$GITHUB_STEP_SUMMARY"

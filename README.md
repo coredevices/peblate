@@ -6,12 +6,14 @@ No Weblate fork or separate translator application.
 
 ## Production deployment
 
-Push app changes to this repository's **`main`** branch. The cluster's
+Push app changes to this repository's **`main`** branch. The **Deploy production**
+GitHub Action immediately triggers the cluster's
 [build-weblate workflow](https://github.com/coredevices/pebble-cluster/actions/workflows/build-weblate.yml)
-checks main on a five-minute schedule, builds and tests changed revisions, and
+which builds and tests that exact commit and
 commits the image digest for Flux to deploy at https://translate.repebble.com/.
-GitHub can delay scheduled runs; maintainers can use **Run workflow** with blank
-revision fields to start immediately. No Eric approval or manual image update is
+There is no scheduled polling. Maintainers can use **Run workflow** to retry.
+Documentation-only pushes skip deployment.
+No Eric approval or manual image update is
 needed. Builds run in GitHub Actions, and deployment goes directly to production.
 
 See the cluster's [deployment and rollback instructions](https://github.com/coredevices/pebble-cluster/blob/main/flux/apps/weblate/APP-DEPLOYMENT.md)
