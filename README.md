@@ -16,9 +16,8 @@ Documentation-only pushes skip deployment.
 No Eric approval or manual image update is
 needed. Builds run in GitHub Actions, and deployment goes directly to production.
 
-See the cluster's [deployment and rollback instructions](https://github.com/coredevices/pebble-cluster/blob/main/flux/apps/weblate/APP-DEPLOYMENT.md)
-for dependency pins, pausing automatic deployment, and recovering from a failed
-change. [Translation publishing](https://github.com/coredevices/pebble-cluster/blob/main/flux/apps/weblate/PUBLISHING.md)
+See the shared [cluster deployment convention](https://github.com/coredevices/pebble-cluster/blob/main/docs/deployments.md).
+[Translation publishing](https://github.com/coredevices/pebble-cluster/blob/main/flux/apps/weblate/PUBLISHING.md)
 and [automated backups](https://github.com/coredevices/pebble-cluster/blob/main/flux/apps/weblate/BACKUPS.md)
 are configured separately.
 
