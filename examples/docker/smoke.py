@@ -93,6 +93,7 @@ def run_job(client, path, data):
 assert views.font_assignment("fr", {"name": "GOTHIC_14_EXTENDED", "file": ""}) == {
     "font_name": None,
     "license_name": None,
+    "reuse_key": None,
 }
 client = Client()
 assert client.get("/pebble/").status_code == 302
@@ -207,6 +208,30 @@ with override_settings(PEBLATE_COMPONENT="", PEBLATE_CACHE_ROOT=None):
 print(
     "Installed extension, renderer assets, component configuration and auth checks passed"
 )
+# Complete the custom-font journey in the isolated clone: reuse the licensed
+# upload for every text style, then verify gaps are resolved and bytes deduplicated.
+client.force_login(get_user_model().objects.get(username="admin"))
+for slot_name, _ in views.SLOTS:
+    response = client.post(
+        "/pebble/he_IL/font/",
+        {"slot": slot_name, "reuse_slot": "GOTHIC_18_EXTENDED", "format": "json"},
+    )
+    assert response.status_code == 200, response.content[:500]
+text_slots = {name for name, _ in views.SLOTS}
+entries = [
+    entry for entry in mapping_for("he_IL")["fonts"] if entry["name"] in text_slots
+]
+assert len({entry["file"] for entry in entries}) == 1
+assert len({entry["license"] for entry in entries}) == 1
+report = run_job(client, "/pebble/he_IL/validate/", {}).json()
+assert report["ok"], report
+assert all(
+    not font["uncovered_characters"]
+    for font in report["fonts"]
+    if font["slot"] in text_slots
+)
+print("All ten text styles covered; one shared font and license; ready to build")
+
 # A separate clone has no service cache, hard links, or uncommitted files.
 clone = Path(asset_temp.name) / "fresh-clone"
 subprocess.run(

@@ -95,3 +95,11 @@ cleanup and shares job files through its existing Weblate data volume.
 Use stock PO format and a repository POT template. Run `source_import_smoke.py`
 with the same `weblate shell` command to test native source uploads and language
 creation in an isolated component. See the [source guide](../../docs/source-sync.md).
+
+## Translator UX checks
+
+Run `setup_smoke.py` with `weblate shell` to verify the project-level new-language
+entry point, coverage guidance and access controls. `smoke.py` uploads the Hebrew
+font fixture with its license, rejects missing licenses, reuses the assets across
+all ten text styles, checks coverage, and rebuilds the same pack from a fresh Git
+clone. Font mutations in these tests use an isolated checkout.

@@ -4,8 +4,11 @@
 from django.urls import include, path
 
 from . import job_views, views
+from .weblate_adapter import project_language_setup
 
 urlpatterns = [
+    path("new-lang/<str:project>/", project_language_setup),
+    path("pebble/setup/coverage/", views.setup_coverage, name="pebble-setup-coverage"),
     path("pebble/jobs/<uuid:job_id>/", job_views.job_status, name="pebble-job"),
     path(
         "pebble/jobs/<uuid:job_id>/download/",

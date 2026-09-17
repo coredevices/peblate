@@ -49,3 +49,35 @@ def language_store(code):
     store = AssetStore(owner.full_path, git, repository.lock)
     catalog = Path(translation.get_filename()).relative_to(store.root)
     return store, catalog
+
+
+def project_language_setup(request, project):
+    """Use guided setup when the project has one eligible Peblate component.
+
+    Delegate other projects, permissions and POSTs to the native view. In projects
+    with several eligible components, preserve Weblate's multi-component form.
+    """
+    from django.shortcuts import redirect
+    from django.urls import reverse
+    from weblate.trans.views.basic import new_language
+
+    user = request.user
+    if (
+        request.method == "GET"
+        and user.is_authenticated
+        and user.is_active
+        and enabled_component().split("/")[0] == project
+    ):
+        owner = component()
+        if (
+            user.can_access_component(owner)
+            and user.has_perm("translation.add", owner)
+            and owner.effective_new_lang == "add"
+            and owner.can_add_new_language(user)
+            and list(owner.project.components_user_can_add_new_language(user))
+            == [owner]
+        ):
+            return redirect(
+                reverse("new-language", kwargs={"path": owner.get_url_path()})
+            )
+    return new_language(request, path=[project])

@@ -13,10 +13,16 @@ from django.test import Client
 from weblate.vcs.git import LocalRepository
 
 from peblate.asset_store import AssetStore
+from peblate.font_guidance import baseline_coverage
 from peblate.models import LanguageJob
 from peblate.permissions import capabilities
 from peblate.weblate_adapter import component, translation_for_code
 
+assert baseline_coverage("en_US")["GOTHIC_18_EXTENDED"] == 0
+assert baseline_coverage("fr_FR")["GOTHIC_18_EXTENDED"] == 0
+assert baseline_coverage("he_IL")["GOTHIC_18_EXTENDED"] > 0
+assert baseline_coverage("en_IL") == baseline_coverage("en_US")
+assert baseline_coverage("zz_ZZ") is None
 owner = component()
 assert (
     owner.repo == "local:"
@@ -44,6 +50,19 @@ with tempfile.TemporaryDirectory(prefix="peblate-permissions-") as temp:
     def git(args):
         return repository.execute(args, remote_op="none")
 
+    with repository.lock:
+        # Keep the empty-source case independent of fonts added to the live demo.
+        map_path = (
+            root / Path(translation_for_code("he_IL").filename).parent / "lang_map.json"
+        )
+        mapping = json.loads(map_path.read_text())
+        for entry in mapping["fonts"]:
+            if entry["name"] == "GOTHIC_36_BOLD_EXTENDED":
+                entry["file"] = ""
+                entry.pop("license", None)
+        map_path.write_text(json.dumps(mapping))
+        git(["add", str(map_path.relative_to(root))])
+        git(["commit", "--allow-empty", "-m", "Set isolated empty-font fixture"])
     store = AssetStore(root, git, repository.lock)
 
     def test_store(code):
@@ -119,6 +138,46 @@ with tempfile.TemporaryDirectory(prefix="peblate-permissions-") as temp:
                 response.status_code,
                 response.content[:150],
             )
+            response = client.post(
+                "/pebble/he_IL/font/",
+                {
+                    "slot": "GOTHIC_28_EXTENDED",
+                    "reuse_slot": "GOTHIC_18_EXTENDED",
+                    "format": "json",
+                },
+            )
+            assert response.status_code == (200 if expected[1] else 403), (
+                response.content[:150]
+            )
+            if expected[1]:
+                with store.lock:
+                    mapping = store.mapping(Path(translation.filename), "he_IL")
+                    entries = {entry["name"]: entry for entry in mapping["fonts"]}
+                    for key in ("file", "license"):
+                        assert (
+                            entries["GOTHIC_28_EXTENDED"][key]
+                            == entries["GOTHIC_18_EXTENDED"][key]
+                        )
+                    reused_head = git(["rev-parse", "HEAD"])
+                response = client.post(
+                    "/pebble/he_IL/font/",
+                    {
+                        "slot": "GOTHIC_28_EXTENDED",
+                        "reuse_slot": "GOTHIC_18_EXTENDED",
+                        "format": "json",
+                    },
+                )
+                assert response.status_code == 200
+                with store.lock:
+                    assert git(["rev-parse", "HEAD"]) == reused_head
+                for source in ("../other/font.ttf", "GOTHIC_36_BOLD_EXTENDED"):
+                    assert (
+                        client.post(
+                            "/pebble/he_IL/font/",
+                            {"slot": "GOTHIC_28_EXTENDED", "reuse_slot": source},
+                        ).status_code
+                        == 400
+                    )
             for action in ("validate", "build"):
                 response = client.post(
                     "/pebble/he_IL/validate/", {"action": action, "format": "json"}

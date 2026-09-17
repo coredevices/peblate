@@ -13,6 +13,7 @@ from pathlib import Path
 import freetype
 from django.conf import settings
 from django.contrib import messages
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.http import FileResponse, Http404, HttpResponse, JsonResponse
 from django.shortcuts import redirect
 from django.urls import reverse
@@ -60,7 +61,7 @@ def asset_path(code, entry, key="file"):
 
 def font_assignment(code, entry):
     if not entry or not entry.get("file"):
-        return {"font_name": None, "license_name": None}
+        return {"font_name": None, "license_name": None, "reuse_key": None}
     name = entry.get("original_name")
     if not name:
         try:
@@ -73,6 +74,9 @@ def font_assignment(code, entry):
         except (freetype.FT_Exception, OSError):
             name = "Uploaded font"
     return {
+        "reuse_key": hashlib.sha256(
+            json.dumps([entry["file"], entry.get("license")]).encode()
+        ).hexdigest(),
         "font_name": name,
         "license_name": entry.get("license_original_name", "Uploaded license")
         if entry.get("license")
@@ -98,6 +102,36 @@ def upload_font(request, code):
     if slot not in dict(SLOTS):
         return HttpResponse("Choose a text style.", status=400)
     uploaded = request.FILES.get("font")
+    license_file = request.FILES.get("license")
+    reuse = request.POST.get("reuse_slot")
+    if reuse:
+        if reuse not in dict(SLOTS):
+            return HttpResponse(
+                "Choose an existing text style.", status=400, content_type="text/plain"
+            )
+        try:
+            store, catalog = language_store(code)
+            with store.lock:
+                entry = next(
+                    (
+                        item
+                        for item in store.mapping(catalog, code)["fonts"]
+                        if item["name"] == reuse
+                    ),
+                    None,
+                )
+                if not entry or not entry.get("file") or not entry.get("license"):
+                    raise ValueError("Choose a font that already has a license.")
+                uploaded = SimpleUploadedFile(
+                    entry.get("original_name", "font.ttf"),
+                    store.resource(catalog, entry["file"]).read_bytes(),
+                )
+                license_file = SimpleUploadedFile(
+                    entry.get("license_original_name", "license.txt"),
+                    store.resource(catalog, entry["license"]).read_bytes(),
+                )
+        except (ValueError, OSError) as error:
+            return HttpResponse(str(error), status=400, content_type="text/plain")
     if not uploaded or uploaded.size > 20 * 1024 * 1024:
         return HttpResponse("Choose a font smaller than 20 MB.", status=400)
     content = uploaded.read()
@@ -112,7 +146,6 @@ def upload_font(request, code):
                 "This file could not be read as a font. Upload a TTF or OTF font.",
                 status=400,
             )
-    license_file = request.FILES.get("license")
     if not license_file or not 0 < license_file.size <= 1024 * 1024:
         return HttpResponse(
             "Upload the font license as text or PDF (up to 1 MB).",
@@ -232,3 +265,31 @@ def preview_font(request, code, slot):
             )
     except (ValueError, OSError, RuntimeError) as error:
         return HttpResponse(str(error), status=400, content_type="text/plain")
+
+
+@require_capability()
+def setup_coverage(request):
+    from django.core.exceptions import PermissionDenied
+    from django.shortcuts import get_object_or_404
+    from weblate.lang.models import Language
+
+    from .font_guidance import baseline_coverage
+
+    owner = component()
+    if not request.user.has_perm(
+        "translation.add", owner
+    ) or not owner.can_add_new_language(request.user):
+        raise PermissionDenied
+    selected = get_object_or_404(Language, code=request.GET.get("language", ""))
+    coverage = baseline_coverage(selected.code)
+    return JsonResponse(
+        {
+            "language": selected.name,
+            "known": coverage is not None,
+            "styles": [
+                {"label": label, "missing": coverage[name]}
+                for name, label in SLOTS
+                if coverage and coverage[name]
+            ],
+        }
+    )

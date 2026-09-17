@@ -5,6 +5,7 @@ from django import template
 from django.templatetags.static import static
 from django.urls import reverse
 
+from peblate.font_guidance import baseline_coverage
 from peblate.permissions import capabilities
 from peblate.views import SLOTS, font_assignment, mapping_for
 from peblate.weblate_adapter import enabled_component
@@ -27,10 +28,12 @@ def pebble_editor_panel(context, unit):
         for entry in mapping_for(code)["fonts"]
         if entry.get("file")
     }
+    baseline = baseline_coverage(code)
     slots = [
         {
             **font_assignment(code, mapping.get(name)),
             "name": name,
+            "baseline_missing": baseline[name] if baseline else None,
             "extension_url": reverse("pebble-font-pbf", args=[code, name]),
             "label": label,
             "pbf_url": static(
@@ -47,7 +50,21 @@ def pebble_editor_panel(context, unit):
         "permissions": capabilities(request.user, unit.translation),
         "code": code,
         "slots": slots,
+        "baseline_known": baseline is not None,
+        "baseline_needs_fonts": any(baseline[name] for name, _ in SLOTS)
+        if baseline
+        else False,
         "request": request,
         "csrf_token": context["csrf_token"],
         "language_name": unit.translation.language.name,
     }
+
+
+@register.simple_tag
+def pebble_setup_enabled(owner, user):
+    return (
+        owner.full_slug == enabled_component()
+        and owner.effective_new_lang == "add"
+        and user.has_perm("translation.add", owner)
+        and owner.can_add_new_language(user)
+    )

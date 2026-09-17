@@ -62,7 +62,7 @@ future work. Generated artifacts are ignored in Git and bundled in the wheel.
 - **pebbleos-translations:** independent catalog/font/pack tools and coverage/baseline data.
 - **PebbleOS:** firmware rendering code and the WASM artifact.
 
-The UI uses one template override and `editor.js` selectors; Weblate model access
+The UI overrides the editor and new-language templates and adds JavaScript; Weblate model access
 is isolated in `weblate_adapter.py`. This is a Django extension, not just an event
 add-on: event hooks alone cannot supply the editor UI. Tested against Weblate
 **2026.9.1**; a system check warns on other versions. Weblate's internal API is not
@@ -99,6 +99,25 @@ The example configures Weblate’s `posix_long` language-code style, so new cata
 folders include a country code (`de_DE`, `fr_FR`, `he_IL`, etc.). Downloads use the
 catalog folder’s locale too. `en_IL` remains English with Hebrew glyph coverage;
 it is not an alias for Hebrew.
+
+## Translator guidance
+
+New-language setup reviews font requirements before submitting Weblate’s native
+language-creation form. The project-level **+ / New translation** also opens this
+wizard when the configured component is the only eligible component; projects
+with multiple eligible components retain Weblate’s native selection flow. Missing fonts do not block starting a translation; fonts
+and licenses are supplied in the editor.
+
+The editor explains the steps from a new language to a draft pack. Initial font
+advice uses the selected language's character baseline and actual built-in glyph
+coverage. The font panel lists assignments and can reuse a font with its existing
+license across text styles. Coverage results show missing characters and examples,
+with a direct action to select the affected style. Font changes invalidate the
+last check; unsaved translations must be saved before checking or building.
+
+Previews follow the active translation field, including plural forms. They render
+a sample text box; full-screen layout review and publication approval remain
+separate from successful draft-build checks.
 
 ## Background checks and drafts
 
