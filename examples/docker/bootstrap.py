@@ -6,6 +6,7 @@
 import shutil
 from pathlib import Path
 
+from peblate.language_policy import TRANSLATION_LANGUAGE_FILTER
 from weblate.lang.models import Language
 from weblate.trans.models import Component, Project
 
@@ -22,6 +23,7 @@ component, created = Component.objects.get_or_create(
         "vcs": "local",
         "branch": "main",
         "filemask": "*/tintin.po",
+        "language_regex": TRANSLATION_LANGUAGE_FILTER,
         "language_code_style": "posix_long",
         "inherit_language_code_style": False,
         "file_format": "po",
@@ -33,7 +35,9 @@ component, created = Component.objects.get_or_create(
         "license": "Apache-2.0",
     },
 )
-Component.objects.filter(pk=component.pk).update(repo="local:", vcs="local")
+Component.objects.filter(pk=component.pk).update(
+    repo="local:", vcs="local", language_regex=TRANSLATION_LANGUAGE_FILTER
+)
 component = Component.objects.get(pk=component.pk)
 if not Path(component.full_path).exists():
     shutil.copytree("/seed", component.full_path)

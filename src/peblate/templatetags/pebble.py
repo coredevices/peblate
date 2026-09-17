@@ -6,6 +6,7 @@ from django.templatetags.static import static
 from django.urls import reverse
 
 from peblate.font_guidance import baseline_coverage
+from peblate.language_policy import translation_language_allowed
 from peblate.permissions import capabilities
 from peblate.views import SLOTS, font_assignment, mapping_for
 from peblate.weblate_adapter import enabled_component
@@ -68,3 +69,14 @@ def pebble_setup_enabled(owner, user):
         and user.has_perm("translation.add", owner)
         and owner.can_add_new_language(user)
     )
+
+
+@register.simple_tag
+def pebble_translation_choices(form):
+    field = form.fields["lang"]
+    field.choices = [
+        (code, name)
+        for code, name in field.choices
+        if not code or translation_language_allowed(str(code))
+    ]
+    return ""

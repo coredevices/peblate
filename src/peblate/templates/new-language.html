@@ -4,6 +4,7 @@
 {% block content %}
 {% pebble_setup_enabled component request.user as setup_enabled %}
 {% if setup_enabled %}
+{% pebble_translation_choices form %}
 <div class="card" id="pebble-language-setup" data-coverage-url="{% url 'pebble-setup-coverage' %}">
   <div class="card-header"><h4>Start a watch language</h4></div>
   <div class="card-body">

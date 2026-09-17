@@ -281,6 +281,10 @@ def setup_coverage(request):
     ) or not owner.can_add_new_language(request.user):
         raise PermissionDenied
     selected = get_object_or_404(Language, code=request.GET.get("language", ""))
+    from .language_policy import translation_language_allowed
+
+    if not translation_language_allowed(selected.code):
+        raise Http404("English font packs are not translation targets")
     coverage = baseline_coverage(selected.code)
     return JsonResponse(
         {

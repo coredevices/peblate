@@ -31,6 +31,12 @@ procedure, and restart its web and worker processes. For the official Docker
 image, [the example](examples/docker/README.md) installs wheels in a thin derived
 image and supplies these settings. Weblate itself stays unmodified.
 
+Run `weblate peblate_configure_languages` after configuring the component. This
+uses Weblate's native language filter to exclude English font-only catalogs
+(`en_*`) from discovery and language creation, and rescans existing translations.
+Their repository files and fonts remain available for pack builds; maintain them
+in Git. English remains the read-only firmware source, not a translation target.
+
 One component is supported per installation; give it a dedicated preview-cache directory.
 Access follows Weblate’s component and language permissions. Preview needs
 `translation.download`; font changes also need `unit.edit` and `upload.perform`;
