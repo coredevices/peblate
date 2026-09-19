@@ -18,7 +18,7 @@ concurrency:
 
 jobs:
   deploy:
-    if: github.repository == 'coredevices/peblate' && github.ref == 'refs/heads/main'
+    if: github.repository == 'coredevices/peblate'
     runs-on: ubuntu-latest
     steps:
       - name: Start the cluster build and deployment for this commit
