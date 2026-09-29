@@ -44,6 +44,14 @@ validation and draft builds need `unit.edit`. Read-only viewers see disabled
 mutation controls, and every endpoint checks permissions independently. Source
 English is handled by firmware, so Peblate’s pack controls are hidden there.
 
+Draft checks and builds use saved translations from Weblate's database, including
+strings awaiting approval, with a private snapshot of the repository's fonts.
+They do not commit translations or change approval states. This lets contributors
+test their work when Weblate's translation quality filter permits only approved
+translations into Git. Strings marked as needing editing retain their fuzzy flag
+and are excluded from compiled packs. Suggestions must first be accepted and
+unsaved editor text must first be saved to appear in a draft.
+
 ## Build
 
 ```sh
@@ -88,8 +96,9 @@ together in Weblate's component checkout, under Weblate's repository lock.
 Each regional folder (such as `he_IL/`) holds its catalog, map, and hashed font
 and license files. Styles in a language share local filenames; identical files
 across languages share Git blobs, while remaining local in a checkout.
-Maps sit beside their catalogs and are created on the first upload
-or pack check. Unassigned slots use the watch's base fonts.
+Maps sit beside their catalogs and are created during font setup or upload.
+For catalogs without a map, checks and builds create one only in the private
+snapshot. Unassigned slots use the watch's base fonts.
 
 Repeated identical assignments create no additional commit. Asset commits exclude
 unrelated staged translations; failed commits restore the previous files. These

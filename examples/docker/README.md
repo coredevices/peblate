@@ -90,6 +90,12 @@ Celery worker to finish, so run it after restarting the updated web and workers.
 Both use the same `weblate shell` command above. The example schedules hourly
 cleanup and shares job files through its existing Weblate data volume.
 
+`draft_review_smoke.py` creates a disposable project with approved-only commits.
+It verifies that a translator's unreviewed edits appear in downloadable draft
+packs while Git, review states, and pending edits stay unchanged. It also checks
+contexts, plurals, fuzzy exclusion, fixed snapshots, and that a subsequent native
+commit includes only approved edits. Run it with the same `weblate shell` command.
+
 ## Translation sources
 
 Use stock PO format and a repository POT template. Run `source_import_smoke.py`

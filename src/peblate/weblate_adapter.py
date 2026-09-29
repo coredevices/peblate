@@ -3,9 +3,11 @@
 The corresponding template blocks and selectors live in translate.html and editor.js.
 """
 
+import polib
 from django.conf import settings
 from django.db.models import Q
 from django.shortcuts import get_object_or_404
+from weblate.formats.exporters import PoExporter
 from weblate.trans.models import Component, Translation
 
 
@@ -26,9 +28,16 @@ def translation_for_code(code):
     )
 
 
-def saved_catalog(translation):
-    translation.commit_pending("pebble-preview", None, skip_push=True)
-    return translation.get_filename()
+def draft_catalog(translation):
+    """Export saved strings, including unreviewed edits, without flushing Git."""
+    exporter = PoExporter(translation=translation)
+    exporter.add_units(translation.unit_set.prefetch_full().order_by("position"))
+    catalog = polib.pofile(exporter.serialize().decode("utf-8"))
+    # Generic exports replace pack-specific headers (including Name and version)
+    # with Weblate defaults. Keep those headers while exporting current strings.
+    catalog.metadata = polib.pofile(translation.get_filename()).metadata
+    catalog.metadata["Plural-Forms"] = translation.plural.plural_form
+    return str(catalog).encode("utf-8")
 
 
 def language_store(code):

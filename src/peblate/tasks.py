@@ -18,7 +18,7 @@ from weblate.utils.celery import app
 
 from .models import LanguageJob
 from .permissions import capabilities
-from .weblate_adapter import enabled_component, language_store, saved_catalog
+from .weblate_adapter import draft_catalog, enabled_component, language_store
 
 logger = logging.getLogger(__name__)
 
@@ -57,12 +57,13 @@ def snapshot_inputs(job, root):
         or not capabilities(job.owner, translation)["validate"]
     ):
         raise PermissionError("Your permission to build this language was removed.")
-    saved_catalog(translation)
     store, catalog = language_store(translation.language_code)
     job.locale = catalog.parent.name
     with store.lock:
-        store.ensure_mapping(catalog, job.locale)
         store.snapshot(catalog, job.locale, root / job.locale)
+        # Only the private snapshot receives unreviewed database edits. The
+        # repository's catalog and pending changes remain governed by Weblate.
+        (root / job.locale / "tintin.po").write_bytes(draft_catalog(translation))
         job.source_revision = store.git(["rev-parse", "HEAD"]).strip()
         job.snapshot_at = timezone.now()
     job.save(update_fields=["locale", "source_revision", "snapshot_at"])

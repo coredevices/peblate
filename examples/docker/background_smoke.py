@@ -60,7 +60,12 @@ with tempfile.TemporaryDirectory(prefix="peblate-jobs-test-") as temp:
     with (
         override_settings(PEBLATE_CACHE_ROOT=str(root / "cache")),
         patch("peblate.tasks.language_store", isolated_store),
-        patch("peblate.tasks.saved_catalog"),
+        # Exercise lifecycle isolation against the disposable catalog. The real
+        # database export is covered by draft_review_smoke.py.
+        patch(
+            "peblate.tasks.draft_catalog",
+            side_effect=lambda translation: (clone / translation.filename).read_bytes(),
+        ),
         patch("peblate.job_views.run_language_job.apply_async") as publish,
     ):
 
