@@ -43,7 +43,8 @@ with patch.dict(
         "PEBLATE_FIREBASE_PROJECT_ID": "peblate-auth-test",
         "PEBLATE_FIREBASE_API_KEY": "public-test-key",
         "PEBLATE_FIREBASE_AUTH_DOMAIN": "peblate-auth-test.firebaseapp.com",
-        "PEBLATE_FIREBASE_TEST_EMAILS": email,
+        # Stale deployment allowlists must not restrict existing users.
+        "PEBLATE_FIREBASE_TEST_EMAILS": "former-tester@example.org",
     },
 ):
     configure_pebble_auth(namespace)
@@ -97,8 +98,8 @@ def begin(client):
         },
     )
     assert response.status_code == 200, (response.status_code, response.content[:600])
-    assert b"invited testers" in response.content
-    if settings.PEBLATE_FIREBASE_ENABLED and settings.PEBLATE_FIREBASE_TEST_EMAILS:
+    assert b"existing Weblate accounts" in response.content
+    if settings.PEBLATE_FIREBASE_ENABLED:
         assert (
             "https://www.gstatic.com/firebasejs/10.12.2/"
             in response["Content-Security-Policy"]
@@ -164,18 +165,25 @@ with (
         not in public.get("/accounts/login/")["Content-Security-Policy"]
     )
 
-    # Even a valid invited identity must explicitly link an existing account.
+    # Any valid identity must explicitly link an existing account first.
     response = complete(public)
     assert response.status_code == 403 and b"First sign in" in response.content
-    with override_settings(REGISTRATION_OPEN=True):
-        assert complete(public).status_code == 403
+    for registration_open in (False, True):
+        with override_settings(REGISTRATION_OPEN=registration_open):
+            assert complete(public).status_code == 403
+            response = complete(
+                public, token(sub=f"unknown-{suffix}", email="new-user@example.org")
+            )
+            assert response.status_code == 403 and b"First sign in" in response.content
+            assert User.objects.count() == count
     assert User.objects.count() == count
 
     for changes in (
-        {"email": "outsider@example.com"},
         {"email_verified": False},
         {"email_verified": "true"},
         {"email": None},
+        {"email": ""},
+        {"email": " "},
         {"aud": "another-project"},
         {"iss": "https://securetoken.google.com/another-project"},
         {"exp": int(time.time()) - 10},
@@ -213,8 +221,6 @@ with (
     )
     assert complete(public, state="wrong-state").status_code == 403
 
-    with override_settings(PEBLATE_FIREBASE_TEST_EMAILS=()):
-        assert complete(public).status_code == 403
     with override_settings(PEBLATE_FIREBASE_ENABLED=False):
         assert complete(public).status_code == 403
 
@@ -262,7 +268,8 @@ with (
     assert response.status_code == 302, response.content[:500]
     assert signed_out.session["_auth_user_id"] == str(user.pk)
     assert complete(signed_out, proof, state).status_code == 403  # One-shot flow.
-    with override_settings(PEBLATE_FIREBASE_TEST_EMAILS=()):
+    assert signed_out.get("/accounts/profile/").status_code == 200
+    with override_settings(PEBLATE_FIREBASE_ENABLED=False):
         assert signed_out.get("/accounts/profile/").status_code == 302
 
     # No disabled user login, even for a previously linked Firebase UID.
@@ -284,7 +291,7 @@ with (
     transaction.set_rollback(True)
 
 print(
-    "PASS: signed JWTs, closed allowlist, CSRF/state, explicit existing-account linking,"
+    "PASS: signed JWTs, any verified email, CSRF/state, explicit existing-account linking,"
 )
 print(
     "password confirmation, no token persistence, same-user login, inactive users and native 2FA"

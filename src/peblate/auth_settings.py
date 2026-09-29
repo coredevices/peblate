@@ -1,4 +1,4 @@
-"""Opt-in configuration for the closed Pebble Accounts trial."""
+"""Opt-in Pebble Accounts login for existing Weblate users."""
 
 import os
 
@@ -12,18 +12,13 @@ def configure_pebble_auth(namespace):
         namespace[f"PEBLATE_FIREBASE_{key}"] = os.environ.get(
             f"PEBLATE_FIREBASE_{key}", ""
         )
-    namespace["PEBLATE_FIREBASE_TEST_EMAILS"] = tuple(
-        email.strip().casefold()
-        for email in os.environ.get("PEBLATE_FIREBASE_TEST_EMAILS", "").split(",")
-        if email.strip()
-    )
     if not namespace["PEBLATE_FIREBASE_ENABLED"]:
         return
     namespace["AUTHENTICATION_BACKENDS"] = (
         *namespace["AUTHENTICATION_BACKENDS"],
         "peblate.firebase_auth.PebbleAuth",
     )
-    namespace["SOCIAL_AUTH_PEBBLE_TITLE"] = "Pebble account (private testing)"
+    namespace["SOCIAL_AUTH_PEBBLE_TITLE"] = "Pebble account"
     namespace["MIDDLEWARE"] = tuple(
         "peblate.auth_middleware.PebbleSecurityMiddleware"
         if item == "weblate.middleware.SecurityMiddleware"

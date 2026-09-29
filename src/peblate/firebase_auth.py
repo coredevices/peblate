@@ -1,6 +1,6 @@
 """Firebase identity verification through Weblate's native social-auth pipeline.
 
-This initial rollout only links and signs in existing, allowlisted accounts.
+Only explicitly linked, existing Weblate accounts can sign in.
 It cannot provision users, even when global registration is enabled.
 """
 
@@ -26,20 +26,12 @@ class PebbleLoginDenied(Exception):
     """A safe, user-facing denial, never containing token data."""
 
 
-def allowed_emails():
-    return {
-        email.casefold()
-        for email in getattr(settings, "PEBLATE_FIREBASE_TEST_EMAILS", ())
-    }
-
-
 def enabled():
     return bool(
         getattr(settings, "PEBLATE_FIREBASE_ENABLED", False)
         and getattr(settings, "PEBLATE_FIREBASE_PROJECT_ID", "")
         and getattr(settings, "PEBLATE_FIREBASE_API_KEY", "")
         and getattr(settings, "PEBLATE_FIREBASE_AUTH_DOMAIN", "")
-        and allowed_emails()
     )
 
 
@@ -65,11 +57,9 @@ def validate_principal(response):
     if (
         response.get("email_verified") is not True
         or not isinstance(response.get("email"), str)
-        or response["email"].casefold() not in allowed_emails()
+        or not response["email"].strip()
     ):
-        raise PebbleLoginDenied(
-            "Pebble sign-in is limited to invited testers with a verified email."
-        )
+        raise PebbleLoginDenied("Pebble sign-in requires a verified email address.")
     project = settings.PEBLATE_FIREBASE_PROJECT_ID
     if (
         response.get("iss") != f"https://securetoken.google.com/{project}"
@@ -90,7 +80,7 @@ def existing_account_only(strategy, response, user=None, social=None, **kwargs):
         raise PebbleLoginDenied(
             "First sign in to your existing Weblate account, then open "
             "Settings → Account and connect your Pebble account. "
-            "New accounts are not enabled yet."
+            "Pebble sign-in cannot create a Weblate account."
         )
     if not user.is_active or user.email.casefold() != response["email"].casefold():
         raise PebbleLoginDenied(
@@ -180,7 +170,7 @@ class PebbleAuth(BaseAuth):
         return self.strategy.authenticate(*args, **kwargs)
 
     def continue_pipeline(self, partial):
-        # Recheck the trial gate when resuming password confirmation or 2FA.
+        # Recheck identity validity when resuming password confirmation or 2FA.
         validate_principal(partial.kwargs.get("response", {}))
         return super().continue_pipeline(partial)
 
@@ -189,11 +179,6 @@ class PebbleAuth(BaseAuth):
 
     def get_user(self, user_id):
         user = super().get_user(user_id)
-        if (
-            not enabled()
-            or not user
-            or not user.is_active
-            or user.email.casefold() not in allowed_emails()
-        ):
+        if not enabled() or not user or not user.is_active:
             return None
         return user

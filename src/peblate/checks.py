@@ -38,7 +38,7 @@ def firebase_configuration_checks(app_configs, **kwargs):
     if not enabled():
         return [
             Error(
-                "Pebble login requires Firebase web configuration and a nonempty tester email allowlist.",
+                "Pebble login requires Firebase web configuration.",
                 id="peblate.E003",
             )
         ]

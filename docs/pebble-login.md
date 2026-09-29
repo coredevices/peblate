@@ -1,13 +1,13 @@
-# Pebble Accounts login (closed trial)
+# Pebble Accounts login
 
 Peblate integrates Firebase with Weblate's existing social-auth pipeline. It
 preserves Weblate account IDs, roles, contribution history, password confirmation,
 two-factor authentication, and audit entries. The native password login remains
 available for recovery. This feature is disabled by default.
 
-The initial release **only links and signs in existing Weblate accounts**. It
+This integration **only links and signs in existing Weblate accounts**. It
 does not create accounts, even if Weblate registration is accidentally opened.
-An empty tester allowlist admits nobody. Matching an email never automatically
+Any verified email is accepted, but matching an email never automatically
 links accounts: the user must first authenticate to their existing Weblate account.
 
 ## Configuration
@@ -28,19 +28,20 @@ PEBLATE_FIREBASE_ENABLED=1
 PEBLATE_FIREBASE_PROJECT_ID=coreapp-ce061
 PEBLATE_FIREBASE_AUTH_DOMAIN=coreapp-ce061.firebaseapp.com
 PEBLATE_FIREBASE_API_KEY=<existing Pebble Firebase web API key>
-PEBLATE_FIREBASE_TEST_EMAILS=<comma-separated exact tester email addresses>
 ```
 
 The Firebase web API key is browser configuration, not a service-account private
 key. Token verification uses Google's public signing certificates. No Firebase
-admin private key is needed. Keep the tester list in deployment environment configuration rather than
-hardcoding it into the authentication backend. A signing key or shared SSO cookie secret is not required.
+admin private key, signing key, or shared SSO cookie secret is required.
+The former `PEBLATE_FIREBASE_TEST_EMAILS` setting is no longer used and can be
+removed from deployment configuration **after deploying the updated Peblate image**.
+Older images still require that setting; the updated image ignores it.
 
 Keep `WEBLATE_REGISTRATION_OPEN=0` and the project private during testing. These
 settings do not grant project access or change any user's role. The Firebase
-backend rejects non-allowlisted emails and unverified emails on every sign-in,
-including returning users and resumed password/2FA flows. Removing a tester or
-disabling the feature also prevents their Firebase-backed sessions being used;
+backend requires a verified email matching the existing Weblate account on every
+sign-in, including returning users and resumed password/2FA flows. Disabling the
+feature also prevents Firebase-backed sessions being used;
 existing native Weblate sessions and recovery login are unaffected.
 
 Add the site's hostname to Firebase Authentication's authorized domains. Retain
@@ -57,13 +58,13 @@ already; its defaults keep the feature disabled.
 
 ## First-time linking
 
-1. Sign in using the tester's existing Weblate login.
+1. Sign in using your existing Weblate login.
 2. Open **Settings → Account** (`/accounts/profile/#account`).
-3. Under available authentication methods, connect **Pebble account (private testing)**.
+3. Under available authentication methods, connect **Pebble account**.
 4. Choose the existing Pebble account's Google, Apple, or GitHub sign-in provider.
-   Its verified email must match the Weblate account's email and the tester list.
+   Its verified email must match the Weblate account's email.
 5. Complete Weblate's password confirmation and any two-factor challenge.
-6. Sign out of Weblate, then test **Pebble account (private testing)** on the login page.
+6. Sign out of Weblate, then test **Pebble account** on the login page.
 
 Starting with Pebble login before linking displays instructions to sign in to
 Weblate first; it never silently creates a duplicate account or merges users.
@@ -74,7 +75,7 @@ linked in Firebase, use the original Pebble sign-in method.
 
 The disposable local integration test exercises real RSA-signed Firebase-format
 JWT validation, rejecting forged/expired tokens, wrong projects/issuers,
-unverified and non-allowlisted accounts, CSRF/state attacks, and duplicate-account
+unverified emails, CSRF/state attacks, and new or duplicate-account
 creation. It also exercises native password-confirmed linking, returning login,
 disabled accounts, and a native two-factor challenge. It rolls back its fixture
 users and makes no Firebase requests or email deliveries:
@@ -85,5 +86,5 @@ docker compose --env-file .env -f examples/docker/compose.yaml exec -T weblate \
 ```
 
 Provider popups and real Google/Apple/GitHub identity exchange still need a manual
-end-to-end test with an allowed account. A production Firebase identity is not
+end-to-end test with an existing linked account. A production Firebase identity is not
 created or impersonated by the automated test.
