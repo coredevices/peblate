@@ -4,23 +4,6 @@ An installable Django extension for stock Weblate: PebbleOS watch previews,
 font and license uploads, coverage checks, and draft universal language packs.
 No Weblate fork or separate translator application.
 
-## Production deployment
-
-Push app changes to this repository's **`main`** branch. The **Deploy production**
-GitHub Action immediately triggers the cluster's
-[build-weblate workflow](https://github.com/coredevices/pebble-cluster/actions/workflows/build-weblate.yml)
-which builds and tests that exact commit and
-commits the image digest for Flux to deploy at https://translate.repebble.com/.
-There is no scheduled polling. Maintainers can use **Run workflow** to retry.
-Documentation-only pushes skip deployment.
-No Eric approval or manual image update is
-needed. Builds run in GitHub Actions, and deployment goes directly to production.
-
-See the shared [cluster deployment convention](https://github.com/coredevices/pebble-cluster/blob/main/docs/deployments.md).
-[Translation publishing](https://github.com/coredevices/pebble-cluster/blob/main/flux/apps/weblate/PUBLISHING.md)
-and [automated backups](https://github.com/coredevices/pebble-cluster/blob/main/flux/apps/weblate/BACKUPS.md)
-are configured separately.
-
 ## Install in Weblate
 
 Install the `peblate` and `pebbleos-translations` wheels into Weblate's Python
