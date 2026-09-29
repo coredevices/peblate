@@ -97,6 +97,11 @@
   const uploadStyle = document.getElementById('pebble-font-slot');
   const reuseFont = document.getElementById('pebble-reuse-font');
   function showFontSource() {
+    const slot = slots.find(item => item.name === uploadStyle.value);
+    document.getElementById('pebble-font-inputs').disabled = !slot.can_upload;
+    document.getElementById('pebble-font-permission').textContent = slot.can_upload
+      ? (slot.font_url ? 'You can replace this font.' : 'You can upload the first font for this style.')
+      : (slot.font_url ? 'Only this font’s uploader or a reviewer for this language can replace it.' : 'Your Weblate role cannot upload fonts for this language.');
     const reuse = Boolean(reuseFont.value);
     document.getElementById('pebble-new-font-fields').hidden = reuse;
     ['pebble-font-file', 'pebble-font-license'].forEach(id => {
@@ -156,7 +161,9 @@
       const response = await fetch(form.getAttribute('action'), {method:'POST', body:data});
       await checkResponse(response);
       const result = await response.json();
-      Object.assign(slots.find(slot => slot.name === result.slot), result);
+      (result.assignments || [result]).forEach(assignment => {
+        Object.assign(slots.find(slot => slot.name === assignment.slot), assignment);
+      });
       form.reset();
       uploadStyle.value = result.slot;
       showFonts();

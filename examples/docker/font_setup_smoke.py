@@ -19,6 +19,7 @@ from weblate.trans.models import Component, Project
 from weblate.trans.tasks import _remove_project
 
 from peblate.language_policy import TRANSLATION_LANGUAGE_FILTER
+from peblate.models import FontOwnership
 
 fixtures = Path("/tmp/peblate-font-packs")
 assert (fixtures / "en_IL/lang_map.json").is_file()
@@ -198,6 +199,13 @@ with (
             )
             mapping = json.loads((root / "he_IL/lang_map.json").read_text())
             assert len(mapping["fonts"]) == 10
+            created_translation = owner.translation_set.get(language__code="he_IL")
+            assert (
+                FontOwnership.objects.filter(
+                    translation=created_translation, owner=admin
+                ).count()
+                == 10
+            )
             assert all(
                 (root / "he_IL" / entry["license"]).is_file()
                 for entry in mapping["fonts"]

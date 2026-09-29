@@ -8,12 +8,14 @@ from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
+from django.db import transaction
 from django.db.models import Q
 from django.test import Client
 from weblate.vcs.git import LocalRepository
 
 from peblate.asset_store import AssetStore
 from peblate.font_guidance import baseline_coverage
+from peblate.font_permissions import record_ownership
 from peblate.models import LanguageJob
 from peblate.permissions import capabilities
 from peblate.weblate_adapter import component, translation_for_code
@@ -30,7 +32,10 @@ assert (
     and owner.project.access_control == 100
 )
 credentials = json.loads(Path("/app/data/peblate-demo-accounts.json").read_text())
-with tempfile.TemporaryDirectory(prefix="peblate-permissions-") as temp:
+with (
+    transaction.atomic(),
+    tempfile.TemporaryDirectory(prefix="peblate-permissions-") as temp,
+):
     root = Path(temp) / "repo"
     with owner.repository.lock:
         assert not owner.repository.execute(["remote"], remote_op="none").strip()
@@ -64,6 +69,19 @@ with tempfile.TemporaryDirectory(prefix="peblate-permissions-") as temp:
         git(["add", str(map_path.relative_to(root))])
         git(["commit", "--allow-empty", "-m", "Set isolated empty-font fixture"])
     store = AssetStore(root, git, repository.lock)
+    # Give the translator ownership of this isolated fixture's existing fonts.
+    translation = translation_for_code("he_IL")
+    catalog = Path(translation.filename)
+    with store.lock:
+        mapping = store.mapping(catalog, "he_IL")
+        record_ownership(
+            get_user_model().objects.get(username="peblate-translator"),
+            translation,
+            store,
+            catalog,
+            mapping,
+            [entry["name"] for entry in mapping["fonts"]],
+        )
 
     def test_store(code):
         translation = owner.translation_set.get(
@@ -209,6 +227,7 @@ with tempfile.TemporaryDirectory(prefix="peblate-permissions-") as temp:
         csrf = Client(enforce_csrf_checks=True)
         csrf.force_login(get_user_model().objects.get(username="peblate-translator"))
         assert csrf.post("/pebble/he_IL/font/", {}).status_code == 403
+    transaction.set_rollback(True)
 print(
     "Component/language scopes, review role, denied mutations, login and CSRF checks passed"
 )

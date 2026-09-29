@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2026 Core Devices LLC
 # SPDX-License-Identifier: Apache-2.0
 
-"""Durable job status for language checks and draft packs."""
+"""Durable language-job status and ownership of uploaded font assignments."""
 
 import uuid
 from datetime import timedelta
@@ -39,5 +39,24 @@ class LanguageJob(models.Model):
                 fields=["owner", "translation", "operation"],
                 condition=Q(status__in=["queued", "running"]),
                 name="peblate_one_active_job",
+            ),
+        )
+
+
+class FontOwnership(models.Model):
+    """Uploader of the current font assignment; repository metadata is not authority."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    translation = models.ForeignKey("trans.Translation", on_delete=models.CASCADE)
+    slot = models.CharField(max_length=80)
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True
+    )
+    fingerprint = models.CharField(max_length=64)
+
+    class Meta:
+        constraints = (
+            models.UniqueConstraint(
+                fields=["translation", "slot"], name="peblate_font_assignment"
             ),
         )

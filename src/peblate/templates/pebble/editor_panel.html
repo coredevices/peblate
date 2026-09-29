@@ -32,6 +32,8 @@
         <label class="form-label small" for="pebble-font-slot">Use this font for</label>
         <select id="pebble-font-slot" name="slot" class="form-select form-select-sm">{% for slot in slots %}<option value="{{ slot.name }}" {% if slot.name == 'GOTHIC_18_EXTENDED' %}selected{% endif %}>{{ slot.label }}</option>{% endfor %}</select>
         <p id="pebble-current-font" class="small mt-2" role="status"></p>
+        <p id="pebble-font-permission" class="small" role="status"></p>
+        <fieldset id="pebble-font-inputs" disabled>
         <label class="form-label small" for="pebble-reuse-font">Font source</label>
         <select id="pebble-reuse-font" name="reuse_slot" class="form-select form-select-sm"><option value="">Upload a new font and license</option></select>
         <div id="pebble-new-font-fields">
@@ -43,6 +45,7 @@
         <p class="small">Use the same font file for multiple styles if needed. Identical font and license files are stored once.</p>
         <button class="btn btn-secondary btn-sm mt-2" type="submit">Upload font</button>
         <p id="pebble-upload-status" class="small mt-2" role="status"></p>
+        </fieldset>
         </fieldset>
         {% if not permissions.upload %}<p class="small">You can preview this language, but your Weblate role cannot change its fonts.</p>{% endif %}
       </form>

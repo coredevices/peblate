@@ -13,13 +13,16 @@ from pathlib import Path
 import freetype
 from django.conf import settings
 from django.contrib import messages
+from django.core.exceptions import PermissionDenied
 from django.core.files.uploadedfile import SimpleUploadedFile
+from django.db import transaction
 from django.http import FileResponse, Http404, HttpResponse, JsonResponse
 from django.shortcuts import redirect
 from django.urls import reverse
 from django.views.decorators.http import require_POST
 from weblate.vcs.base import RepositoryError
 
+from .font_permissions import affected_slots, font_access, record_ownership
 from .permissions import require_capability
 from .weblate_adapter import (
     component,
@@ -103,10 +106,23 @@ def language(request, code):
 @require_capability("upload")
 @require_POST
 def upload_font(request, code):
-    translation_for(code)
+    translation = translation_for(code)
     slot = request.POST.get("slot")
     if slot not in dict(SLOTS):
         return HttpResponse("Choose a text style.", status=400)
+    store, catalog = language_store(code)
+
+    def check_replacement():
+        mapping = store.mapping(catalog, code)
+        _, allowed = font_access(request.user, translation, store, catalog, mapping)
+        if not allowed[slot]:
+            raise PermissionDenied(
+                "Only this font's uploader or a reviewer for this language can replace it."
+            )
+        return mapping
+
+    with store.lock:
+        check_replacement()
     uploaded = request.FILES.get("font")
     license_file = request.FILES.get("license")
     reuse = request.POST.get("reuse_slot")
@@ -140,16 +156,37 @@ def upload_font(request, code):
     except ValueError as error:
         return HttpResponse(str(error), status=400, content_type="text/plain")
     try:
-        store, catalog = language_store(code)
-        entry = store.upload(
-            catalog,
-            code,
-            slot,
-            content,
-            license_content,
-            uploaded.name,
-            license_file.name,
-        )
+        with store.lock, transaction.atomic():
+            # Recheck after validation: another upload may have filled the slot.
+            previous = check_replacement()
+            affected = affected_slots(previous, slot)
+            entry = store.upload(
+                catalog,
+                code,
+                slot,
+                content,
+                license_content,
+                uploaded.name,
+                license_file.name,
+            )
+            mapping = store.mapping(catalog, code)
+            record_ownership(
+                request.user, translation, store, catalog, mapping, affected
+            )
+            entries, allowed = font_access(
+                request.user, translation, store, catalog, mapping
+            )
+            assignments = [
+                {
+                    **font_assignment(code, entries[name]),
+                    "slot": name,
+                    "can_upload": allowed[name],
+                    "font_url": reverse("pebble-font", args=[code, name])
+                    + "?v="
+                    + hashlib.sha256(content).hexdigest()[:12],
+                }
+                for name in sorted(affected)
+            ]
     except (ValueError, OSError, RepositoryError) as error:
         return HttpResponse(
             f"Font could not be saved: {error}", status=400, content_type="text/plain"
@@ -159,6 +196,8 @@ def upload_font(request, code):
             {
                 **font_assignment(code, entry),
                 "slot": slot,
+                "can_upload": allowed[slot],
+                "assignments": assignments,
                 "font_url": reverse("pebble-font", args=[code, slot])
                 + "?v="
                 + hashlib.sha256(content).hexdigest()[:12],

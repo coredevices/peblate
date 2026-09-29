@@ -44,6 +44,14 @@ validation and draft builds need `unit.edit`. Read-only viewers see disabled
 mutation controls, and every endpoint checks permissions independently. Source
 English is handled by firmware, so Peblate’s pack controls are hidden there.
 
+Contributors can fill an empty font style and replace their own current uploads.
+Replacing another contributor's font requires `unit.review` for that language
+or a superuser. Fonts supplied during language creation belong to their creator.
+Ownership is stored in Weblate and tied to the assignment and asset contents;
+Git edits cannot claim ownership. Existing/imported fonts with no recorded owner
+require a reviewer to replace them. An identical re-upload preserves ownership.
+Run database migrations when deploying this update.
+
 Draft checks and builds use saved translations from Weblate's database, including
 strings awaiting approval, with a private snapshot of the repository's fonts.
 They do not commit translations or change approval states. This lets contributors

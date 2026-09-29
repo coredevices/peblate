@@ -6,10 +6,11 @@ from django.templatetags.static import static
 from django.urls import reverse
 
 from peblate.font_guidance import baseline_coverage
+from peblate.font_permissions import font_access
 from peblate.language_policy import translation_language_allowed
 from peblate.permissions import capabilities
-from peblate.views import SLOTS, font_assignment, resolved_mapping_for
-from peblate.weblate_adapter import enabled_component
+from peblate.views import SLOTS, font_assignment
+from peblate.weblate_adapter import enabled_component, language_store
 
 register = template.Library()
 
@@ -24,16 +25,18 @@ def pebble_editor_panel(context, unit):
     ):
         return {"enabled": False}
     code = unit.translation.language_code
-    mapping = {
-        slot: entry
-        for slot, entry in resolved_mapping_for(code).items()
-        if entry.get("file")
-    }
+    store, catalog = language_store(code)
+    with store.lock:
+        entries, allowed = font_access(
+            request.user, unit.translation, store, catalog, store.mapping(catalog, code)
+        )
+    mapping = {slot: entry for slot, entry in entries.items() if entry.get("file")}
     baseline = baseline_coverage(unit.translation.language.code)
     slots = [
         {
             **font_assignment(code, mapping.get(name)),
             "name": name,
+            "can_upload": allowed[name],
             "baseline_missing": baseline[name] if baseline else None,
             "extension_url": reverse("pebble-font-pbf", args=[code, name]),
             "label": label,

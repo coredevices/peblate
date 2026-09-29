@@ -11,6 +11,7 @@ from pathlib import Path
 from django.conf import settings
 from django.core import signing
 from django.core.exceptions import PermissionDenied
+from django.db import transaction
 from django.http import FileResponse, Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404
 from django.templatetags.static import static
@@ -21,6 +22,7 @@ from weblate.trans.forms import get_new_component_language_form
 from weblate.trans.views.basic import new_language
 from weblate.vcs.base import RepositoryError
 
+from .font_permissions import record_ownership
 from .permissions import require_capability
 from .setup_fonts import TEXT_SLOTS, font_packs, requirements, reuse_pack
 from .views import SLOTS
@@ -215,7 +217,17 @@ def install_creation_fonts(sender, translation, **kwargs):
         return
     store = component_store(translation.component)
     catalog = Path(translation.get_filename()).relative_to(store.root)
-    store.install_prepared(catalog, draft["folder"], language=draft["language"])
+    with store.lock, transaction.atomic():
+        store.install_prepared(catalog, draft["folder"], language=draft["language"])
+        mapping = store.mapping(catalog, draft["language"])
+        record_ownership(
+            draft["user"],
+            translation,
+            store,
+            catalog,
+            mapping,
+            [entry["name"] for entry in mapping["fonts"]],
+        )
 
 
 def language_setup(request, project, component):
@@ -257,7 +269,12 @@ def language_setup(request, project, component):
                 "Confirm the unknown character coverage before creating this language."
             )
         context_token = creation_draft.set(
-            {"component": owner.pk, "language": selected.code, "folder": folder}
+            {
+                "component": owner.pk,
+                "language": selected.code,
+                "folder": folder,
+                "user": request.user,
+            }
             if folder
             else None
         )
