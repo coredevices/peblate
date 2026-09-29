@@ -8,12 +8,12 @@
       <ol class="small mt-2">
         <li>Translate and save strings in Weblate. New languages start from the released English strings.</li>
         <li>Check the language to find missing characters. Built-in fonts may already cover your language.</li>
-        <li>Supply fonts and licenses where needed, preview the result, then build a draft to try on a watch.</li>
+        <li>Review the watch preview, then build a draft to try on a watch.</li>
       </ol>
       <p class="small">You choose the fonts. Required characters are selected automatically from the language and its translations.</p>
     </details>
     {% if not baseline_known %}<p class="small pebble-warning">We do not have a baseline character list for this language. Check coverage as you translate.</p>
-    {% elif baseline_needs_fonts %}<p class="small pebble-warning">The built-in fonts alone do not cover this language. Use custom fonts below and check your translations to verify coverage.</p>
+    {% elif baseline_needs_fonts %}<p class="small pebble-warning">The built-in fonts alone do not cover this language. Fonts prepared during language setup supply the extra characters. Check your translations to verify coverage.</p>
     {% else %}<p class="small">The built-in text fonts cover this language’s baseline characters. Additional characters in your translations are checked separately.</p>{% endif %}
     <h5 class="mt-3">Watch preview</h5>
     <p class="text-body-secondary small">Follows the translation field you’re editing, including unsaved text.</p>
@@ -23,8 +23,8 @@
     <p id="pebble-font-status" class="small text-body-secondary"></p>
     <p class="small text-body-secondary">Firmware text rendering in a sample 144 × 168 text box. Check that the text is readable and fits. Full watch-screen layouts still need review.</p>
     <hr>
-    <details id="pebble-font-details"><summary>Fonts for {{ language_name }}</summary>
-      <p class="small mt-2">Required characters come from this language and its translations automatically. Upload a font only when validation finds missing characters. You choose the font and must have permission to distribute it.</p>
+    <details id="pebble-font-details"><summary>Advanced: change fonts for {{ language_name }}</summary>
+      <p class="small mt-2">Required characters come from this language and its translations automatically. Fonts are normally prepared when the language is created. Change them here only for missing characters or rendering corrections. You choose the font and must have permission to distribute it.</p>
       <details class="mb-3"><summary id="pebble-font-overview-summary">Font assignments</summary><div id="pebble-font-overview" class="small mt-2" aria-label="Assigned fonts"></div></details>
       <form id="pebble-font-form" method="post" enctype="multipart/form-data" action="{% url 'pebble-upload' code %}">
         {% csrf_token %}<input type="hidden" name="format" value="json">

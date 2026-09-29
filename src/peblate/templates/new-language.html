@@ -1,14 +1,14 @@
 {% extends "new-language.html" %}
 {% load crispy_forms_tags static pebble %}
-{% block extra_script %}{{ block.super }}<script defer src="{% static 'pebble/setup.js' %}"></script>{% endblock %}
+{% block extra_script %}{{ block.super }}<script defer src="{% static 'pebble/renderer/renderer.js' %}"></script><script defer src="{% static 'pebble/setup.js' %}"></script>{% endblock %}
 {% block content %}
 {% pebble_setup_enabled component request.user as setup_enabled %}
 {% if setup_enabled %}
 {% pebble_translation_choices form %}
-<div class="card" id="pebble-language-setup" data-coverage-url="{% url 'pebble-setup-coverage' %}">
+<div class="card" id="pebble-language-setup" data-coverage-url="{% url 'pebble-setup-coverage' %}" data-prepare-url="{% url 'pebble-setup-prepare' %}">
   <div class="card-header"><h4>Start a watch language</h4></div>
   <div class="card-body">
-    <p>Choose a language, review its font needs, then start translating.</p>
+    <p>Choose a language, prepare and review its fonts, then start translating.</p>
     <form method="post" action="{% url 'new-language' path=object.get_url_path %}" id="pebble-setup-form">
       {% csrf_token %}
       <section id="pebble-setup-language">
@@ -17,16 +17,46 @@
         {{ form|crispy }}
       </section>
       <section id="pebble-setup-review" hidden>
-        <h5>2. Review font requirements</h5>
+        <h5>2. Prepare and review fonts</h5>
         <div id="pebble-setup-coverage" aria-live="polite"></div>
+        <div id="pebble-setup-fonts" hidden>
+          <label class="form-label" for="pebble-setup-source">Font source</label>
+          <select id="pebble-setup-source" class="form-select"><option value="">Upload fonts and a license</option></select>
+          <p id="pebble-setup-pack-note" class="small"></p>
+          <fieldset id="pebble-setup-upload">
+            <label class="form-label" for="pebble-setup-font">Regular font (TTF or OTF, up to 20 MB)</label>
+            <input id="pebble-setup-font" type="file" class="form-control" accept=".ttf,.otf">
+            <label class="form-label mt-2" for="pebble-setup-bold">Bold font (optional, same license)</label>
+            <input id="pebble-setup-bold" type="file" class="form-control" accept=".ttf,.otf">
+            <p class="small">If omitted, the regular font is used for bold styles too.</p>
+            <label class="form-label" for="pebble-setup-license">Font license (text or PDF, up to 1 MB)</label>
+            <input id="pebble-setup-license" type="file" class="form-control" accept=".txt,.md,.pdf">
+          </fieldset>
+          <button type="button" class="btn btn-secondary mt-3" id="pebble-setup-prepare">Check fonts and preview</button>
+          <p class="small mt-2">Fonts and their licenses are saved with the new language after review. Required characters are selected automatically.</p>
+        </div>
+        <div id="pebble-setup-preview" hidden>
+          <p id="pebble-setup-font-result" role="status"></p>
+          <details id="pebble-setup-gap-details" hidden><summary>Missing characters by text style</summary><ul id="pebble-setup-gap-list"></ul></details>
+          <label id="pebble-setup-gaps" hidden><input type="checkbox" name="gaps_reviewed" value="yes"> I have reviewed the missing characters and accept this coverage for now.</label>
+          <label class="form-label" for="pebble-setup-sample">Sample text</label>
+          <textarea class="form-control" id="pebble-setup-sample" dir="auto" rows="2" maxlength="1000"></textarea>
+          <p class="small">Try a short phrase in your language. This preview includes the language’s baseline characters; additional translation characters are checked in the editor.</p>
+          <label class="form-label" for="pebble-setup-style">Preview text style</label>
+          <select class="form-select" id="pebble-setup-style"></select>
+          <canvas class="my-3" id="pebble-setup-canvas" width="144" height="168" aria-label="PebbleOS font rendering" style="width:288px;height:336px;image-rendering:pixelated;border:8px solid #444;border-radius:8px"></canvas>
+          <p id="pebble-setup-render-status" role="status"></p>
+          <label><input type="checkbox" id="pebble-setup-reviewed" name="rendering_reviewed" value="yes" disabled> I have reviewed the watch rendering and these fonts are ready to use.</label>
+        </div>
+        <label id="pebble-setup-unknown" hidden><input type="checkbox" name="unknown_reviewed" value="yes"> I understand that this language has no character baseline and will check coverage as I translate.</label>
+        <input type="hidden" name="font_review" id="pebble-setup-token">
         <h5 class="mt-3">3. Start translating</h5>
-        <p>Create the language now. In its translation editor, you can upload fonts with their licenses, preview text, and check a draft pack.</p>
-        <p>You choose and supply the fonts. Required characters are selected automatically from the language and your translations. Missing fonts do not prevent you from starting.</p>
+        <p>Create the language with the fonts you reviewed, then translate and check a draft pack. Font changes remain available in the editor for unusual characters or later corrections.</p>
       </section>
       <p id="pebble-setup-status" role="status"></p>
       <button type="button" class="btn btn-secondary" id="pebble-setup-back" hidden>Back to languages</button>
-      <button type="submit" class="btn btn-primary" id="pebble-setup-next">Create language</button>
-      <noscript><p>The translation editor will explain font requirements after creation.</p></noscript>
+      <button type="submit" class="btn btn-primary" id="pebble-setup-next" disabled>Review font requirements</button>
+      <noscript><p>Enable JavaScript to prepare and review fonts before creating a language.</p></noscript>
     </form>
   </div>
 </div>

@@ -47,6 +47,25 @@ for username, allowed in [
             ).status_code
             == 404
         )
+    response = client.post("/pebble/setup/prepare/", {"language": "fa"})
+    assert response.status_code == (400 if allowed else 403), (
+        username,
+        response.status_code,
+    )
+    response = client.post(
+        "/pebble/setup/preview/GOTHIC_18_EXTENDED/",
+        {"language": "fa", "token": "invalid"},
+    )
+    assert response.status_code == (400 if allowed else 403), (
+        username,
+        response.status_code,
+    )
+client.force_login(get_user_model().objects.get(username="peblate-french-only"))
+assert client.post("/pebble/setup/prepare/", {"language": "fa"}).status_code == 403
+assert Client().post("/pebble/setup/prepare/", {"language": "fa"}).status_code == 302
+csrf_client = Client(enforce_csrf_checks=True)
+csrf_client.force_login(get_user_model().objects.get(username="admin"))
+assert csrf_client.post("/pebble/setup/prepare/", {"language": "fa"}).status_code == 403
 assert Client().get("/pebble/setup/coverage/", {"language": "ar"}).status_code == 302
 assert owner.translation_set.count() == before
 print(
@@ -58,7 +77,7 @@ assert client.get("/new-lang/absent-project/").status_code == 404
 assert Client().get("/new-lang/pebbleos/").status_code == 302
 print("PASS: project entry redirects to setup with native access checks")
 
-# Preserve native submissions and multi-component/other-project behavior.
+# Route single-component submissions through setup; preserve other projects and multi-component behavior.
 from peblate.weblate_adapter import project_language_setup
 
 factory = RequestFactory()
@@ -68,8 +87,11 @@ with patch(
 ) as native:
     request = factory.post("/new-lang/pebbleos/", {"lang": "fr"})
     request.user = admin
-    assert project_language_setup(request, "pebbleos").content == b"native"
-    native.assert_called_once_with(request, path=["pebbleos"])
+    with patch(
+        "peblate.setup_views.language_setup", return_value=HttpResponse("setup")
+    ) as setup:
+        assert project_language_setup(request, "pebbleos").content == b"setup"
+        setup.assert_called_once_with(request, "pebbleos", owner.slug)
     request = factory.get("/new-lang/pebbleos/")
     request.user = admin
     with override_settings(PEBLATE_COMPONENT="another/watch"):
@@ -80,4 +102,4 @@ with patch(
         return_value=[owner, object()],
     ):
         assert project_language_setup(request, "pebbleos").content == b"native"
-print("PASS: native POST, other projects and multi-component flow preserved")
+print("PASS: guided POST, other projects and multi-component flow preserved")

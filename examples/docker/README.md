@@ -103,3 +103,16 @@ entry point, coverage guidance and access controls. `smoke.py` uploads the Hebre
 font fixture with its license, rejects missing licenses, reuses the assets across
 all ten text styles, checks coverage, and rebuilds the same pack from a fresh Git
 clone. Font mutations in these tests use an isolated checkout.
+
+
+`font_setup_smoke.py` exercises preparation, reuse, coverage acceptance, watch-font
+compilation and native creation in a disposable component. Prepare fixtures once:
+
+```sh
+docker compose --env-file .env -f examples/docker/compose.yaml exec -T weblate mkdir -p /tmp/peblate-font-packs
+for pack in en_IL en_SA en_TW; do
+  docker cp "../pebbleos-translations/$pack" pebble-weblate-prototype-weblate-1:/tmp/peblate-font-packs/
+done
+docker compose --env-file .env -f examples/docker/compose.yaml exec -T weblate \
+  weblate shell < examples/docker/font_setup_smoke.py
+```

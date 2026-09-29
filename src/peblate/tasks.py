@@ -170,3 +170,12 @@ def cleanup_jobs():
             and timezone.now().timestamp() - child.stat().st_mtime > 86400
         ):
             shutil.rmtree(child, ignore_errors=True)
+
+    # Abandoned setup drafts expire even if the user never creates a language.
+    folder = Path(settings.PEBLATE_CACHE_ROOT) / "setup"
+    for child in folder.iterdir() if folder.exists() else []:
+        if (
+            child.is_dir()
+            and timezone.now().timestamp() - child.stat().st_mtime > 86400
+        ):
+            shutil.rmtree(child, ignore_errors=True)

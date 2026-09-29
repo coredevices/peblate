@@ -54,6 +54,12 @@ def mapping_for(code):
         return store.mapping(catalog, code)
 
 
+def resolved_mapping_for(code):
+    from pebble_language_tools.lang_commands import resolve_font_entries
+
+    return resolve_font_entries(mapping_for(code))
+
+
 def asset_path(code, entry, key="file"):
     store, catalog = language_store(code)
     return store.resource(catalog, entry[key])
@@ -112,14 +118,9 @@ def upload_font(request, code):
         try:
             store, catalog = language_store(code)
             with store.lock:
-                entry = next(
-                    (
-                        item
-                        for item in store.mapping(catalog, code)["fonts"]
-                        if item["name"] == reuse
-                    ),
-                    None,
-                )
+                from pebble_language_tools.lang_commands import resolve_font_entries
+
+                entry = resolve_font_entries(store.mapping(catalog, code)).get(reuse)
                 if not entry or not entry.get("file") or not entry.get("license"):
                     raise ValueError("Choose a font that already has a license.")
                 uploaded = SimpleUploadedFile(
@@ -132,37 +133,12 @@ def upload_font(request, code):
                 )
         except (ValueError, OSError) as error:
             return HttpResponse(str(error), status=400, content_type="text/plain")
-    if not uploaded or uploaded.size > 20 * 1024 * 1024:
-        return HttpResponse("Choose a font smaller than 20 MB.", status=400)
-    content = uploaded.read()
-    with tempfile.TemporaryDirectory() as temp:
-        test = Path(temp) / "font.ttf"
-        test.write_bytes(content)
-        try:
-            face = freetype.Face(str(test))
-            face.set_pixel_sizes(0, 18)
-        except freetype.FT_Exception:
-            return HttpResponse(
-                "This file could not be read as a font. Upload a TTF or OTF font.",
-                status=400,
-            )
-    if not license_file or not 0 < license_file.size <= 1024 * 1024:
-        return HttpResponse(
-            "Upload the font license as text or PDF (up to 1 MB).",
-            status=400,
-            content_type="text/plain",
-        )
-    license_content = license_file.read()
-    if not license_content.startswith(b"%PDF-"):
-        try:
-            if not license_content.decode("utf-8").strip() or b"\0" in license_content:
-                raise ValueError
-        except (UnicodeDecodeError, ValueError):
-            return HttpResponse(
-                "The license must be a non-empty UTF-8 text file or PDF.",
-                status=400,
-                content_type="text/plain",
-            )
+    from .font_upload import validate_upload
+
+    try:
+        content, license_content, _, _ = validate_upload(uploaded, license_file)
+    except ValueError as error:
+        return HttpResponse(str(error), status=400, content_type="text/plain")
     try:
         store, catalog = language_store(code)
         entry = store.upload(
@@ -197,9 +173,7 @@ def upload_font(request, code):
 @require_capability("preview")
 def font_file(request, code, slot):
     translation_for(code)
-    entry = next(
-        (entry for entry in mapping_for(code)["fonts"] if entry["name"] == slot), None
-    )
+    entry = resolved_mapping_for(code).get(slot)
     if not entry or not entry.get("file"):
         raise Http404
     return FileResponse((asset_path(code, entry)).open("rb"), content_type="font/ttf")
@@ -209,9 +183,7 @@ def font_file(request, code, slot):
 @require_POST
 def preview_font(request, code, slot):
     translation_for(code)
-    entry = next(
-        (item for item in mapping_for(code)["fonts"] if item["name"] == slot), None
-    )
+    entry = resolved_mapping_for(code).get(slot)
     if not entry or not entry.get("file") or slot not in dict(SLOTS):
         raise Http404
     if not entry.get("license") or not (asset_path(code, entry, "license")).is_file():
@@ -241,7 +213,9 @@ def preview_font(request, code, slot):
             catalog.save(str(po))
             store, catalog_path = language_store(code)
             requirements = generate_codepoint_requirements(
-                po, language=catalog_path.parent.name
+                po,
+                language=mapping_for(code)["strings"].get("lang")
+                or catalog_path.parent.name,
             )
             key = hashlib.sha256(
                 json.dumps([entry, requirements], sort_keys=True).encode()
@@ -269,27 +243,25 @@ def preview_font(request, code, slot):
 
 @require_capability()
 def setup_coverage(request):
-    from django.core.exceptions import PermissionDenied
-    from django.shortcuts import get_object_or_404
-    from weblate.lang.models import Language
-
     from .font_guidance import baseline_coverage
+    from .setup_fonts import font_packs, requirements
+    from .setup_views import selection
+    from .weblate_adapter import component_store
 
-    owner = component()
-    if not request.user.has_perm(
-        "translation.add", owner
-    ) or not owner.can_add_new_language(request.user):
-        raise PermissionDenied
-    selected = get_object_or_404(Language, code=request.GET.get("language", ""))
-    from .language_policy import translation_language_allowed
-
-    if not translation_language_allowed(selected.code):
-        raise Http404("English font packs are not translation targets")
+    owner, selected = selection(
+        request, request.GET.get("language", ""), available=False
+    )
     coverage = baseline_coverage(selected.code)
+    _, characters = requirements(selected.code)
+    store = component_store(owner)
+    with store.lock:
+        packs = font_packs(store.root, selected.code)
     return JsonResponse(
         {
             "language": selected.name,
             "known": coverage is not None,
+            "sample": "".join(chr(cp) for cp in sorted(characters) if cp < 0xFB50)[:80],
+            "packs": packs,
             "styles": [
                 {"label": label, "missing": coverage[name]}
                 for name, label in SLOTS

@@ -3,10 +3,17 @@
 
 from django.urls import include, path
 
-from . import job_views, views
+from . import job_views, setup_views, views
 from .weblate_adapter import project_language_setup
 
 urlpatterns = [
+    path("new-lang/<str:project>/<str:component>/", setup_views.language_setup),
+    path("pebble/setup/prepare/", setup_views.prepare, name="pebble-setup-prepare"),
+    path(
+        "pebble/setup/preview/<str:slot>/",
+        setup_views.preview,
+        name="pebble-setup-preview",
+    ),
     path("new-lang/<str:project>/", project_language_setup),
     path("pebble/setup/coverage/", views.setup_coverage, name="pebble-setup-coverage"),
     path("pebble/jobs/<uuid:job_id>/", job_views.job_status, name="pebble-job"),

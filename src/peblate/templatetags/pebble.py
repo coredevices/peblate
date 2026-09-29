@@ -8,7 +8,7 @@ from django.urls import reverse
 from peblate.font_guidance import baseline_coverage
 from peblate.language_policy import translation_language_allowed
 from peblate.permissions import capabilities
-from peblate.views import SLOTS, font_assignment, mapping_for
+from peblate.views import SLOTS, font_assignment, resolved_mapping_for
 from peblate.weblate_adapter import enabled_component
 
 register = template.Library()
@@ -25,11 +25,11 @@ def pebble_editor_panel(context, unit):
         return {"enabled": False}
     code = unit.translation.language_code
     mapping = {
-        entry["name"]: entry
-        for entry in mapping_for(code)["fonts"]
+        slot: entry
+        for slot, entry in resolved_mapping_for(code).items()
         if entry.get("file")
     }
-    baseline = baseline_coverage(code)
+    baseline = baseline_coverage(unit.translation.language.code)
     slots = [
         {
             **font_assignment(code, mapping.get(name)),
@@ -73,10 +73,16 @@ def pebble_setup_enabled(owner, user):
 
 @register.simple_tag
 def pebble_translation_choices(form):
+    from django import forms
+
     field = form.fields["lang"]
+    field.widget = forms.Select(attrs=field.widget.attrs)
+    field.label = "Language"
     field.choices = [
         (code, name)
         for code, name in field.choices
         if not code or translation_language_allowed(str(code))
     ]
+    if not any(not code for code, _ in field.choices):
+        field.choices = [("", "Choose a language"), *field.choices]
     return ""

@@ -34,10 +34,15 @@ def saved_catalog(translation):
 def language_store(code):
     from pathlib import Path
 
+    translation = translation_for_code(code)
+    store = component_store(translation.component)
+    catalog = Path(translation.get_filename()).relative_to(store.root)
+    return store, catalog
+
+
+def component_store(owner):
     from .asset_store import AssetStore
 
-    translation = translation_for_code(code)
-    owner = translation.component
     repository = owner.repository
 
     def git(args):
@@ -46,9 +51,7 @@ def language_store(code):
             repository.clean_revision_cache()
         return result
 
-    store = AssetStore(owner.full_path, git, repository.lock)
-    catalog = Path(translation.get_filename()).relative_to(store.root)
-    return store, catalog
+    return AssetStore(owner.full_path, git, repository.lock)
 
 
 def project_language_setup(request, project):
@@ -63,7 +66,7 @@ def project_language_setup(request, project):
 
     user = request.user
     if (
-        request.method == "GET"
+        request.method in ("GET", "POST")
         and user.is_authenticated
         and user.is_active
         and enabled_component().split("/")[0] == project
@@ -77,6 +80,10 @@ def project_language_setup(request, project):
             and list(owner.project.components_user_can_add_new_language(user))
             == [owner]
         ):
+            if request.method == "POST":
+                from .setup_views import language_setup
+
+                return language_setup(request, project, owner.slug)
             return redirect(
                 reverse("new-language", kwargs={"path": owner.get_url_path()})
             )

@@ -125,11 +125,29 @@ it is not an alias for Hebrew.
 
 ## Translator guidance
 
-New-language setup reviews font requirements before submitting Weblate’s native
-language-creation form. The project-level **+ / New translation** also opens this
-wizard when the configured component is the only eligible component; projects
-with multiple eligible components retain Weblate’s native selection flow. Missing fonts do not block starting a translation; fonts
-and licenses are supplied in the editor.
+New-language setup prepares fonts before creating a translation. The project-level
+**+ / New translation** opens this wizard when the configured component is the
+only eligible component. Set up one language at a time. Languages covered by the
+built-in text fonts need no upload. Other languages require a font and license,
+compilation of every text style, and review with the PebbleOS renderer before
+creation. An optional bold font shares the uploaded license. Missing baseline
+characters are shown by style and require explicit acceptance; compilation
+failures block creation. Unknown baselines require an explicit acknowledgement.
+
+The wizard checks repository `en_*` font-only packs against the selected language
+and offers matching fonts for reuse, including their licenses and rendering
+settings. It identifies partial coverage and rechecks the compiled fonts before
+creation. English strings are never copied into the new translation. Packs remain
+hidden as translation targets. Legacy packs may use a single `LICENSE*` file in
+their folder; otherwise the font map must identify each license explicitly.
+
+Prepared fonts stay in private, user-bound cache drafts for up to 24 hours. Native
+Weblate creation saves the catalog, reviewed fonts and licenses in one repository
+commit. Abandoning or failing preparation creates no language or repository files.
+The component and single-component project forms enforce this review on the server,
+including direct POSTs. Other components and multi-component project forms retain
+Weblate's native flow. The editor's collapsed advanced font controls remain
+available for later corrections.
 
 The editor explains the steps from a new language to a draft pack. Initial font
 advice uses the selected language's character baseline and actual built-in glyph

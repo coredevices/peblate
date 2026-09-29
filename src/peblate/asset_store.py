@@ -118,6 +118,39 @@ class AssetStore:
             )
             return entry
 
+    def install_prepared(self, catalog, folder, *, language=None):
+        """Commit reviewed fonts and a just-created catalog together under Weblate's lock."""
+        folder = Path(folder)
+        with self.lock:
+            mapping = self.mapping(catalog, Path(catalog).parent.name)
+            if language:
+                mapping["strings"]["lang"] = language
+            mapping["fonts"] = json.loads((folder / "fonts.json").read_text())
+            contents = {}
+            for entry in mapping["fonts"]:
+                for key in ("file", "license", "characterList"):
+                    if entry.get(key):
+                        source = folder / entry[key]
+                        if not source.resolve().is_relative_to(folder.resolve()):
+                            raise ValueError("Invalid prepared asset path.")
+                        contents[str(Path(catalog).parent / entry[key])] = (
+                            source.read_bytes()
+                        )
+            contents[str(Path(catalog).with_name("lang_map.json"))] = self.encode(
+                mapping
+            )
+            # The native post-add signal runs after writing the catalog, before its
+            # first Git commit. Remove it temporarily so _commit can atomically
+            # include it and restore a clean checkout on failure.
+            catalog_path = self.path(catalog)
+            if self.git(["ls-files", "--", str(catalog)]).strip():
+                raise ValueError("The language catalog already exists in Git.")
+            contents[str(catalog)] = catalog_path.read_bytes()
+            catalog_path.unlink()
+            self._commit(
+                contents, f"Create {Path(catalog).parent.name} with reviewed fonts"
+            )
+
     def snapshot(self, catalog, code, folder):
         """Copy a consistent build input under the repository lock; caches stay elsewhere."""
         with self.lock:

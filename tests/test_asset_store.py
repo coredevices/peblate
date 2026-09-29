@@ -133,3 +133,49 @@ class AssetStoreTests(unittest.TestCase):
         self.store.ensure_mapping(Path("he_IL/tintin.po"), "he_IL")
         self.assertFalse((self.root / "fonts").exists())
         self.assertEqual(self.git(["status", "--porcelain"]), "")
+
+    def test_prepared_creation_is_one_commit_and_failure_is_clean(self):
+        prepared = self.root / "prepared"
+        prepared.mkdir()
+        (prepared / "font.ttf").write_bytes(b"font")
+        (prepared / "license.txt").write_bytes(b"license")
+        (prepared / "fonts.json").write_text(
+            json.dumps(
+                [
+                    {
+                        "name": "GOTHIC_18_EXTENDED",
+                        "file": "font.ttf",
+                        "license": "license.txt",
+                        "pixelHeight": 14,
+                        "extended": True,
+                    }
+                ]
+            )
+        )
+        catalog = Path("ar_AA/tintin.po")
+        self.store.path(catalog).parent.mkdir()
+        self.store.path(catalog).write_text("new catalog")
+        original = self.git(["rev-parse", "HEAD"])
+
+        def fail(args):
+            if args[0] == "commit":
+                raise RuntimeError("simulated failure")
+            return self.git(args)
+
+        self.store.git = fail
+        with self.assertRaises(RuntimeError):
+            self.store.install_prepared(catalog, prepared)
+        self.assertFalse(self.store.path(catalog).exists())
+        self.assertFalse(self.store.path(catalog.with_name("lang_map.json")).exists())
+        self.assertEqual(self.git(["rev-parse", "HEAD"]), original)
+        self.store.git = self.git
+        self.store.path(catalog).write_text("new catalog")
+        self.store.install_prepared(catalog, prepared)
+        changed = self.git(["show", "--format=", "--name-only", "HEAD"])
+        for name in ("tintin.po", "font.ttf", "license.txt", "lang_map.json"):
+            self.assertIn("ar_AA/" + name, changed)
+        self.assertEqual(
+            self.store.mapping(catalog, "ar_AA")["fonts"][0]["pixelHeight"], 14
+        )
+        with self.assertRaises(ValueError):
+            self.store.install_prepared(catalog, prepared)
