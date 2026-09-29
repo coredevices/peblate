@@ -27,3 +27,26 @@ def configuration_checks(app_configs, **kwargs):
             )
         )
     return errors
+
+
+@register()
+def firebase_configuration_checks(app_configs, **kwargs):
+    if not getattr(settings, "PEBLATE_FIREBASE_ENABLED", False):
+        return []
+    from .firebase_auth import enabled
+
+    if not enabled():
+        return [
+            Error(
+                "Pebble login requires Firebase web configuration and a nonempty tester email allowlist.",
+                id="peblate.E003",
+            )
+        ]
+    if "peblate.firebase_auth.PebbleAuth" not in settings.AUTHENTICATION_BACKENDS:
+        return [
+            Error(
+                "Call configure_pebble_auth(globals()) after Weblate's settings.",
+                id="peblate.E004",
+            )
+        ]
+    return []

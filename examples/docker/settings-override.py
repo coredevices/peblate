@@ -5,6 +5,10 @@ PEBLATE_CACHE_ROOT = "/app/data/peblate-cache"
 # Local example only.
 EMAIL_BACKEND = "django.core.mail.backends.dummy.EmailBackend"
 
+from peblate.auth_settings import configure_pebble_auth
+
+configure_pebble_auth(globals())
+
 CELERY_BEAT_SCHEDULE = {
     **globals().get("CELERY_BEAT_SCHEDULE", {}),
     "peblate-cleanup": {"task": "peblate.tasks.cleanup_jobs", "schedule": 3600.0},

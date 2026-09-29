@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block extra_script %}
+  {% if available %}
+    <script defer src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+    <script defer src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+    <script defer src="{% static 'pebble/login.js' %}"></script>
+  {% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="container">
+  <div class="card mx-auto" style="max-width: 36rem;">
+    <div class="card-body">
+      <h1 class="h3">Sign in with Pebble</h1>
+      <p>Pebble sign-in is currently available to invited testers only.</p>
+      {% if error %}
+        <p class="alert alert-warning" role="alert">{{ error }}</p>
+      {% elif available %}
+        {% if user.is_authenticated %}
+          <p>Connect your Pebble account to <strong>{{ user.username }}</strong> using the same email address. Your translations and permissions will stay with this Weblate account.</p>
+        {% else %}
+          <p>Use the Pebble account you have already connected to Weblate. To connect it for the first time, sign in to Weblate and open Settings → Account.</p>
+        {% endif %}
+        <div class="d-grid gap-2" id="pebble-providers">
+          <button class="btn btn-outline-primary" type="button" data-provider="google" disabled>Continue with Google</button>
+          <button class="btn btn-outline-primary" type="button" data-provider="apple" disabled>Continue with Apple</button>
+          <button class="btn btn-outline-primary" type="button" data-provider="github" disabled>Continue with GitHub</button>
+        </div>
+        <p id="pebble-login-status" class="mt-3" role="status" aria-live="polite">Loading sign-in options…</p>
+        <noscript><p>Enable JavaScript to sign in with your Pebble account.</p></noscript>
+        {{ firebase_config|json_script:"pebble-firebase-config" }}
+        <form id="pebble-login-form" action="{{ complete_url }}" method="post">
+          {% csrf_token %}
+          <input type="hidden" name="state" value="{{ state }}">
+          <input type="hidden" name="id_token" value="">
+        </form>
+      {% else %}
+        <p>Pebble sign-in is not available yet.</p>
+      {% endif %}
+      <p class="mt-3 mb-0"><a href="{% url 'profile' %}#account">Account settings</a> · <a href="{% url 'login' %}">Existing Weblate sign-in</a></p>
+    </div>
+  </div>
+</div>
+{% endblock %}
