@@ -7,6 +7,14 @@ from . import auth_views, job_views, setup_views, views
 from .weblate_adapter import project_language_setup
 
 urlpatterns = [
+    path("accounts/login/", auth_views.pebble_login, name="login"),
+    path(
+        "accounts/login/existing/",
+        auth_views.ExistingLoginView.as_view(),
+        name="pebble-existing-login",
+    ),
+    path("accounts/login/pebble/", auth_views.pebble_begin),
+    path("accounts/register/", auth_views.pebble_register, name="register"),
     path("accounts/complete/pebble/", auth_views.pebble_complete),
     path("new-lang/<str:project>/<str:component>/", setup_views.language_setup),
     path("pebble/setup/prepare/", setup_views.prepare, name="pebble-setup-prepare"),

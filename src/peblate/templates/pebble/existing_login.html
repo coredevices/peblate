@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% load crispy_forms_tags %}
+
+{% block content %}
+<div class="container">
+  <div class="card mx-auto" style="max-width: 36rem;">
+    <div class="card-body">
+      <h1 class="h3">Existing Weblate sign-in</h1>
+      <p>Sign in with your existing Weblate username or email and password.</p>
+      {% if show_login_form %}
+        <form method="post" action="{% url 'pebble-existing-login' %}">
+          {% csrf_token %}
+          {{ form|crispy }}
+          <input type="hidden" name="next" value="{{ next }}">
+          <button type="submit" class="btn btn-primary">Sign in</button>
+        </form>
+      {% endif %}
+      {% if can_reset %}
+        <p class="mt-3"><a href="{% if password_reset_url %}{{ password_reset_url }}{% else %}{% url 'password_reset' %}{% endif %}">Forgot your password?</a></p>
+      {% endif %}
+      <p class="mt-3 mb-0"><a href="{% url 'login' %}{% if next %}?next={{ next|urlencode }}{% endif %}">Sign in with Pebble</a></p>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -38,6 +38,8 @@ Their repository files and fonts remain available for pack builds; maintain them
 in Git. English remains the read-only firmware source, not a translation target.
 
 One component is supported per installation; give it a dedicated preview-cache directory.
+[Pebble Accounts](docs/pebble-login.md) is the only signup method. Registration
+is closed by default; existing accounts retain password login and recovery.
 Access follows Weblate’s component and language permissions. Preview needs
 `translation.download`; font changes also need `unit.edit` and `upload.perform`;
 validation and draft builds need `unit.edit`. Read-only viewers see disabled

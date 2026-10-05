@@ -14,14 +14,17 @@
   <div class="card mx-auto" style="max-width: 36rem;">
     <div class="card-body">
       <h1 class="h3">Sign in with Pebble</h1>
-      <p>Pebble sign-in is available for existing Weblate accounts. It cannot create a new Weblate account.</p>
       {% if error %}
         <p class="alert alert-warning" role="alert">{{ error }}</p>
       {% elif available %}
         {% if user.is_authenticated %}
           <p>Connect your Pebble account to <strong>{{ user.username }}</strong> using the same email address. Your translations and permissions will stay with this Weblate account.</p>
         {% else %}
-          <p>Use the Pebble account you have already connected to Weblate. To connect it for the first time, sign in to Weblate and open Settings → Account.</p>
+          {% if signup_open %}
+            <p>New here? Your verified Pebble account will create your Weblate profile. Sign-up is available only through Pebble Accounts.</p>
+          {% else %}
+            <p>Pebble sign-in is available for existing Weblate accounts. Use the Pebble account you have already connected to Weblate. To connect it for the first time, sign in to Weblate and open Settings → Account.</p>
+          {% endif %}
         {% endif %}
         <div class="d-grid gap-2" id="pebble-providers">
           <button class="btn btn-outline-primary" type="button" data-provider="google" disabled>Continue with Google</button>
@@ -39,7 +42,7 @@
       {% else %}
         <p>Pebble sign-in is not available yet.</p>
       {% endif %}
-      <p class="mt-3 mb-0"><a href="{% url 'profile' %}#account">Account settings</a> · <a href="{% url 'login' %}">Existing Weblate sign-in</a></p>
+      <p class="mt-3 mb-0"><a href="{% url 'pebble-existing-login' %}{% if next %}?next={{ next|urlencode }}{% endif %}">Existing sign-in</a></p>
     </div>
   </div>
 </div>

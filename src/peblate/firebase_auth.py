@@ -1,7 +1,7 @@
 """Firebase identity verification through Weblate's native social-auth pipeline.
 
-Only explicitly linked, existing Weblate accounts can sign in.
-It cannot provision users, even when global registration is enabled.
+When registration is open, verified Pebble identities can create Weblate accounts.
+Existing accounts must explicitly link; matching emails never merge accounts.
 """
 
 import secrets
@@ -10,6 +10,7 @@ from functools import lru_cache
 
 import requests
 from django.conf import settings
+from django.contrib.auth import get_user_model
 from django.template.loader import render_to_string
 from django.urls import reverse
 from django.utils.crypto import constant_time_compare
@@ -17,6 +18,7 @@ from google.auth.exceptions import GoogleAuthError
 from google.auth.transport.requests import Request
 from google.oauth2.id_token import verify_firebase_token
 from social_core.backends.base import BaseAuth
+from social_core.exceptions import AuthForbidden
 
 STATE_KEY = "peblate_firebase_login"
 FLOW_LIFETIME = 600
@@ -75,13 +77,11 @@ def validate_principal(response):
 
 
 def existing_account_only(strategy, response, user=None, social=None, **kwargs):
+    # Keep this pipeline path for partial login flows started before the update.
     validate_principal(response)
     if user is None:
-        raise PebbleLoginDenied(
-            "First sign in to your existing Weblate account, then open "
-            "Settings → Account and connect your Pebble account. "
-            "Pebble sign-in cannot create a Weblate account."
-        )
+        check_new_account(response)
+        return
     if not user.is_active or user.email.casefold() != response["email"].casefold():
         raise PebbleLoginDenied(
             "Use the Pebble account with the same email as your Weblate account."
@@ -91,6 +91,33 @@ def existing_account_only(strategy, response, user=None, social=None, **kwargs):
         or strategy.request.user.pk != user.pk
     ):
         raise PebbleLoginDenied("Sign in to Weblate before linking a Pebble account.")
+
+
+def check_new_account(response):
+    if get_user_model().objects.filter(email__iexact=response["email"]).exists():
+        raise PebbleLoginDenied(
+            "First sign in to your existing Weblate account, then open "
+            "Settings → Account and connect your Pebble account."
+        )
+    if not settings.REGISTRATION_OPEN:
+        raise PebbleLoginDenied("New registrations are not enabled yet.")
+
+
+def registration_policy(strategy, backend, details, user=None, response=None, **kwargs):
+    """Guard native user creation, even for invitations and direct callbacks."""
+    if backend.name != "pebble":
+        if user is None:
+            raise AuthForbidden(backend)
+        return
+    validate_principal(response or {})
+    if details.get("email", "").casefold() != response["email"].casefold():
+        raise PebbleLoginDenied("Use the verified email from your Pebble account.")
+    if user is None:
+        check_new_account(response)
+    elif not user.is_active or user.email.casefold() != response["email"].casefold():
+        raise PebbleLoginDenied(
+            "Use the Pebble account with the same email as your Weblate account."
+        )
 
 
 class PebbleAuth(BaseAuth):
@@ -113,7 +140,9 @@ class PebbleAuth(BaseAuth):
             "pebble/login.html",
             {
                 "title": "Sign in with Pebble",
+                "next": request.POST.get("next") or request.GET.get("next", ""),
                 "available": enabled(),
+                "signup_open": enabled() and settings.REGISTRATION_OPEN,
                 "state": state,
                 "complete_url": reverse("social:complete", args=(self.name,)),
                 "firebase_config": {
@@ -172,10 +201,16 @@ class PebbleAuth(BaseAuth):
     def continue_pipeline(self, partial):
         # Recheck identity validity when resuming password confirmation or 2FA.
         validate_principal(partial.kwargs.get("response", {}))
+        if partial.kwargs.get("user") is None:
+            check_new_account(partial.kwargs["response"])
         return super().continue_pipeline(partial)
 
     def get_user_details(self, response):
-        return {"email": response["email"], "fullname": response.get("name") or ""}
+        return {
+            "email": response["email"],
+            "username": response["email"].split("@", 1)[0],
+            "fullname": response.get("name") or "",
+        }
 
     def get_user(self, user_id):
         user = super().get_user(user_id)
