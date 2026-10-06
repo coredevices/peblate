@@ -6,7 +6,7 @@
     <details class="pebble-setup" open>
       <summary>Getting your language ready</summary>
       <ol class="small mt-2">
-        <li>Translate and save strings in Weblate. New languages start from the released English strings.</li>
+        <li>Translate and save strings in Weblate. Keep translations concise. New languages start from the released English strings.</li>
         <li>Check the language to find missing characters. Built-in fonts may already cover your language.</li>
         <li>Review the watch preview, then build a draft to try on a watch.</li>
       </ol>
@@ -52,6 +52,7 @@
     </details>
     <hr>
     <h5>Draft pack readiness</h5>
+    <p class="small"><a href="{% url 'pebble-publication-language' publication_locale %}">Publication status and font review</a></p>
     <p id="pebble-readiness" class="small" role="status">Not checked yet. Check saved translations to see coverage and build issues.</p>
     <p class="small">One pack works across supported watches. A successful build does not mean the translation is approved for publication.</p>
     <p id="pebble-save-hint" class="small text-body-secondary">Checks and downloads use saved translations.</p>

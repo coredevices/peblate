@@ -53,6 +53,7 @@ def pebble_editor_panel(context, unit):
         "enabled": True,
         "permissions": capabilities(request.user, unit.translation),
         "code": code,
+        "publication_locale": catalog.parent.name,
         "slots": slots,
         "baseline_known": baseline is not None,
         "baseline_needs_fonts": any(baseline[name] for name, _ in SLOTS)

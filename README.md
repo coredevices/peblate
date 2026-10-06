@@ -1,183 +1,104 @@
 # Peblate
 
-An installable Django extension for stock Weblate: PebbleOS watch previews,
-font and license uploads, coverage checks, and draft universal language packs.
-No Weblate fork or separate translator application.
+A Django extension for Weblate that adds PebbleOS watch previews, font uploads,
+coverage checks and draft language packs. Catalog and pack tools live in
+[pebbleos-translations](https://github.com/coredevices/pebbleos-translations).
 
-## Install in Weblate
+## Translating
 
-Install the `peblate` and `pebbleos-translations` wheels into Weblate's Python
-environment (these packages are not published to a package index yet):
+New-language setup prepares fonts and reviews rendering before creating the
+translation. Languages covered by built-in fonts need no upload. The wizard
+also offers compatible fonts and licenses from existing English `en_*` font-only
+packs, which remain hidden as translation targets.
+
+In the editor, keep translations concise and check the watch preview. Save your
+changes before checking coverage or building a draft. Drafts include strings
+awaiting approval; strings marked as needing editing and unaccepted suggestions
+are excluded. Previews show a sample text box, so full watch layouts still need
+testing on a watch.
+
+Contributors can fill empty font styles and replace their own uploads. Replacing
+another contributor's font, or an imported font without an owner, requires
+`unit.review` for that language or a superuser. Uploads require a license;
+advanced font controls in the editor handle later corrections.
+
+## Publication
+
+The editor links to **Language pack publication**. Project maintainers enable
+publication and review draft rendering, font licenses and coverage there.
+Language reviewers approve wording through Weblate's native review workflow and
+language-scoped teams.
+
+Published updates require a language reviewer, at least 80% approved strings,
+current font approval and passing build checks. Only approved strings ship.
+Languages without reviewers remain community drafts; held updates retain their
+previous published pack. English font-only packs need font approval and coverage
+checks, but no wording reviewer.
+
+Decisions are stored in Weblate. The automated publisher in
+`pebbleos-translations` reads them through Peblate's authenticated, read-only API.
+Draft downloads are for testing and do not publish a pack.
+
+## Installation
+
+Install the `peblate` and `pebbleos-translations` wheels in Weblate's Python
+environment. They are not yet published to a package index:
 
 ```sh
 uv pip install --python /path/to/weblate/venv/bin/python /path/to/wheels/*.whl
 ```
 
-Add to Weblate's settings, after its existing settings:
+Add these settings after Weblate's existing settings:
 
 ```python
 INSTALLED_APPS = ["peblate", *INSTALLED_APPS]
 ROOT_URLCONF = "peblate.urls"
-PEBLATE_COMPONENT = "pebbleos/watch"  # your project/component
-PEBLATE_CACHE_ROOT = "/var/lib/weblate/peblate"  # shared by web and worker processes
+PEBLATE_COMPONENT = "pebbleos/watch"
+PEBLATE_CACHE_ROOT = "/var/lib/weblate/peblate"
 CELERY_BEAT_SCHEDULE = {
     **globals().get("CELERY_BEAT_SCHEDULE", {}),
     "peblate-cleanup": {"task": "peblate.tasks.cleanup_jobs", "schedule": 3600.0},
 }
 ```
 
-Run `weblate migrate` and `weblate check`, collect static files using your normal Weblate deployment
-procedure, and restart its web and worker processes. For the official Docker
-image, [the example](examples/docker/README.md) installs wheels in a thin derived
-image and supplies these settings. Weblate itself stays unmodified.
+Run `weblate migrate`, `weblate check` and static-file collection, then restart
+Weblate's web and worker processes. After configuring the component, run
+`weblate peblate_configure_languages` to exclude English font-only catalogs from
+translation discovery and creation while retaining their files for pack builds.
 
-Run `weblate peblate_configure_languages` after configuring the component. This
-uses Weblate's native language filter to exclude English font-only catalogs
-(`en_*`) from discovery and language creation, and rescans existing translations.
-Their repository files and fonts remain available for pack builds; maintain them
-in Git. English remains the read-only firmware source, not a translation target.
+One component is supported per installation. Web and Celery workers must share
+the writable cache directory; keep the default queue worker and beat scheduler
+running. Jobs snapshot saved translations and fonts, recheck permissions on
+access, and expire after 24 hours.
 
-One component is supported per installation; give it a dedicated preview-cache directory.
-[Pebble Accounts](docs/pebble-login.md) is the only signup method. Registration
-is closed by default; existing accounts retain password login and recovery.
-Access follows Weblate’s component and language permissions. Preview needs
-`translation.download`; font changes also need `unit.edit` and `upload.perform`;
-validation and draft builds need `unit.edit`. Read-only viewers see disabled
-mutation controls, and every endpoint checks permissions independently. Source
-English is handled by firmware, so Peblate’s pack controls are hidden there.
+Access uses Weblate's component and language permissions. Previews require
+`translation.download`; draft checks and builds also require `unit.edit`; font
+changes additionally require `upload.perform`. Publication controls require
+project management permission.
 
-Contributors can fill an empty font style and replace their own current uploads.
-Replacing another contributor's font requires `unit.review` for that language
-or a superuser. Fonts supplied during language creation belong to their creator.
-Ownership is stored in Weblate and tied to the assignment and asset contents;
-Git edits cannot claim ownership. Existing/imported fonts with no recorded owner
-require a reviewer to replace them. An identical re-upload preserves ownership.
-Run database migrations when deploying this update.
+Configure [Pebble Accounts](docs/pebble-login.md) for Pebble-only signup.
+Registration is closed by default; existing accounts retain password login and
+recovery. See the [source import guide](docs/source-sync.md) for firmware POT
+updates through Weblate's native API.
 
-Draft checks and builds use saved translations from Weblate's database, including
-strings awaiting approval, with a private snapshot of the repository's fonts.
-They do not commit translations or change approval states. This lets contributors
-test their work when Weblate's translation quality filter permits only approved
-translations into Git. Strings marked as needing editing retain their fuzzy flag
-and are excluded from compiled packs. Suggestions must first be accepted and
-unsaved editor text must first be saved to appear in a draft.
+## Development
 
-## Build
+Prepare the [PebbleOS renderer artifact](renderer/README.md) before building.
+Its generated files are ignored in Git and bundled in the wheel:
 
 ```sh
 uv build --wheel
 ```
 
-Build the standalone tools wheel in `pebbleos-translations` with the same command.
-The installed extension imports that package; it needs no translation checkout,
-firmware checkout, SDK, or source mounts. Pack compilation requires GNU gettext
-(`msgfmt`), which the Weblate image already provides.
+Build the `pebbleos-translations` wheel separately. The installed extension needs
+GNU gettext (`msgfmt`, included in the Weblate image), but no firmware checkout
+or SDK. The [local Docker example](examples/docker/README.md) provides setup and
+integration tests.
 
-Include the renderer artifact before building a wheel: place the PebbleOS
-`tools/text2wasm` output (`renderer.js`, `GOTHIC*.pbf`, `revision.txt`) in
-`src/peblate/static/pebble/renderer/`. See [renderer instructions](renderer/README.md).
-The renderer source belongs to PebbleOS; versioned CI artifact distribution remains
-future work. Generated artifacts are ignored in Git and bundled in the wheel.
+Tested with Weblate **2026.9.1**. Peblate overrides editor and language-creation
+templates and uses Weblate's internal APIs; run integration tests before upgrades.
 
-## Boundaries
-
-- **Weblate:** accounts, catalog editing, language creation, and Git synchronization.
-- **Peblate:** editor sidebar, font/license repository commits, preview endpoints, draft checks/builds.
-- **pebbleos-translations:** independent catalog/font/pack tools and coverage/baseline data.
-- **PebbleOS:** firmware rendering code and the WASM artifact.
-
-The UI overrides the editor and new-language templates and adds JavaScript; Weblate model access
-is isolated in `weblate_adapter.py`. This is a Django extension, not just an event
-add-on: event hooks alone cannot supply the editor UI. Tested against Weblate
-**2026.9.1**; a system check warns on other versions. Weblate's internal API is not
-stable, so run the integration smoke test before upgrades.
-
-## Remaining work
-
-Complete watch-screen previews, automated source POT uploads, and
-reviewed pack publication/mobile distribution. Fonts, licenses, and maps are versioned in the component’s repository; downloads
-are drafts. Automatic validation can later
-use a Weblate add-on event hook.
-
-## Git storage
-
-Uploads commit the font, mandatory license, and the language's `lang_map.json`
-together in Weblate's component checkout, under Weblate's repository lock.
-Each regional folder (such as `he_IL/`) holds its catalog, map, and hashed font
-and license files. Styles in a language share local filenames; identical files
-across languages share Git blobs, while remaining local in a checkout.
-Maps sit beside their catalogs and are created during font setup or upload.
-For catalogs without a map, checks and builds create one only in the private
-snapshot. Unassigned slots use the watch's base fonts.
-
-Repeated identical assignments create no additional commit. Asset commits exclude
-unrelated staged translations; failed commits restore the previous files. These
-operations do not push. Git synchronization remains Weblate's responsibility.
-Compiled preview fonts live only in `PEBLATE_CACHE_ROOT`, outside the checkout;
-a fresh clone plus the standalone tools is sufficient to build a language pack.
-
-The local example remains disposable and has no upstream Git remote. Existing
-prototype service-only uploads are not automatically imported; re-upload any demo
-fonts you want to retain. This is not a migration of the test instance to production.
-
-The example configures Weblate’s `posix_long` language-code style, so new catalog
-folders include a country code (`de_DE`, `fr_FR`, `he_IL`, etc.). Downloads use the
-catalog folder’s locale too. `en_IL` remains English with Hebrew glyph coverage;
-it is not an alias for Hebrew.
-
-## Translator guidance
-
-New-language setup prepares fonts before creating a translation. The project-level
-**+ / New translation** opens this wizard when the configured component is the
-only eligible component. Set up one language at a time. Languages covered by the
-built-in text fonts need no upload. Other languages require a font and license,
-compilation of every text style, and review with the PebbleOS renderer before
-creation. An optional bold font shares the uploaded license. Missing baseline
-characters are shown by style and require explicit acceptance; compilation
-failures block creation. Unknown baselines require an explicit acknowledgement.
-
-The wizard checks repository `en_*` font-only packs against the selected language
-and offers matching fonts for reuse, including their licenses and rendering
-settings. It identifies partial coverage and rechecks the compiled fonts before
-creation. English strings are never copied into the new translation. Packs remain
-hidden as translation targets. Legacy packs may use a single `LICENSE*` file in
-their folder; otherwise the font map must identify each license explicitly.
-
-Prepared fonts stay in private, user-bound cache drafts for up to 24 hours. Native
-Weblate creation saves the catalog, reviewed fonts and licenses in one repository
-commit. Abandoning or failing preparation creates no language or repository files.
-The component and single-component project forms enforce this review on the server,
-including direct POSTs. Other components and multi-component project forms retain
-Weblate's native flow. The editor's collapsed advanced font controls remain
-available for later corrections.
-
-The editor explains the steps from a new language to a draft pack. Initial font
-advice uses the selected language's character baseline and actual built-in glyph
-coverage. The font panel lists assignments and can reuse a font with its existing
-license across text styles. Coverage results show missing characters and examples,
-with a direct action to select the affected style. Font changes invalidate the
-last check; unsaved translations must be saved before checking or building.
-
-Previews follow the active translation field, including plural forms. They render
-a sample text box; full-screen layout review and publication approval remain
-separate from successful draft-build checks.
-
-## Background checks and drafts
-
-Checks and draft builds run on Weblate's existing Celery workers. Web and worker
-processes must share `PEBLATE_CACHE_ROOT`. Keep the default Celery queue worker
-and beat scheduler running; no separate Peblate service is needed.
-
-The editor shows progress and links to a job page. Each job snapshots saved
-translations and fonts when the worker starts; later edits require a new job.
-Concurrent requests for the same operation by the same user reuse the active job.
-Completed drafts have an explicit download link and are never published.
-
-Results belong to the requesting user, and viewing or downloading them rechecks
-current Weblate permissions. Failed or stalled jobs can be retried with a fresh
-snapshot. Checks and builds have time limits; the hourly cleanup task removes
-results after 24 hours.
-
-The [source import guide](docs/source-sync.md) describes native Weblate uploads
-of release-generated POT files. Source templates are committed alongside catalogs.
-Hosted release uploads remain to be connected.
+Fonts, licenses and maps are committed together in Weblate's component checkout.
+Uploads use content hashes, share identical assets and leave pushing to Weblate.
+Compiled fonts, previews and job results stay in the cache. Draft builds use
+private snapshots and do not commit translations or change their approval state.

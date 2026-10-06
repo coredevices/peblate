@@ -52,21 +52,51 @@ def set_phase(job, phase):
 
 def snapshot_inputs(job, root):
     translation = job.translation
-    if (
-        translation.component.full_slug != enabled_component()
-        or not capabilities(job.owner, translation)["validate"]
-    ):
-        raise PermissionError("Your permission to build this language was removed.")
-    store, catalog = language_store(translation.language_code)
-    job.locale = catalog.parent.name
+    from pebble_language_tools.release_policy import font_inputs
+
+    from .publication import is_maintainer, pack_inputs
+
+    if translation:
+        if (
+            translation.component.full_slug != enabled_component()
+            or not capabilities(job.owner, translation)["validate"]
+        ):
+            raise PermissionError("Your permission to build this language was removed.")
+        store, catalog = language_store(translation.language_code)
+        job.locale = catalog.parent.name
+    else:
+        if (
+            not job.component
+            or job.component.full_slug != enabled_component()
+            or not is_maintainer(job.owner, job.component)
+        ):
+            raise PermissionError("Your permission to review these fonts was removed.")
+        store, catalog, _ = pack_inputs(job.component, job.locale)
     with store.lock:
+        job.font_input_hash = font_inputs(
+            store.path(catalog.parent), store.mapping(catalog, job.locale)
+        )
         store.snapshot(catalog, job.locale, root / job.locale)
         # Only the private snapshot receives unreviewed database edits. The
         # repository's catalog and pending changes remain governed by Weblate.
-        (root / job.locale / "tintin.po").write_bytes(draft_catalog(translation))
+        if translation:
+            (root / job.locale / "tintin.po").write_bytes(draft_catalog(translation))
+        else:
+            import polib
+
+            target = root / job.locale
+            original = polib.pofile(str(target / "tintin.po"))
+            headers = polib.POFile()
+            headers.metadata = dict(original.metadata)
+            headers.save(str(target / "tintin.po"))
+            mapping = json.loads((target / "lang_map.json").read_text())
+            mapping["strings"]["lang"] = job.coverage_language
+            (target / "lang_map.json").write_text(json.dumps(mapping))
         job.source_revision = store.git(["rev-parse", "HEAD"]).strip()
         job.snapshot_at = timezone.now()
-    job.save(update_fields=["locale", "source_revision", "snapshot_at"])
+    job.save(
+        update_fields=["locale", "source_revision", "snapshot_at", "font_input_hash"]
+    )
 
 
 def compile_snapshot(job, root):

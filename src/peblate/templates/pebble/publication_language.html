@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block content %}
+<p><a href="{% url 'pebble-publication' %}">All language packs</a>{% if translation %} · <a href="{{ translation.get_translate_url }}">Back to translating</a>{% endif %}</p>
+<div class="card"><div class="card-header"><h1 class="card-title">{{ locale }} publication</h1></div><div class="card-body">
+{% if not data.publicationEnabled %}<p>Publication is disabled. A project maintainer can enable it on the language pack publication page.</p>{% endif %}
+{% if not data.reviewEnabled or not data.approvedOnlyCommits %}<p>Native reviews and approved-only commits must be enabled before updates can ship.</p>{% endif %}
+{% if translation %}
+<p>At least {{ data.minimumApprovedPercent }}% of strings must be approved. Packs include only approved strings; the rest use English fallback.</p>
+<p>Currently {{ data.approvedStrings }} / {{ data.totalStrings }} strings are approved ({{ data.approvedPercent }}%).</p>
+{% if data.reviewers %}<p>Language reviewers: {{ data.reviewers|join:", " }}.</p>{% else %}<p>This is a community language until a wording reviewer is assigned. Add a trusted speaker to a native Weblate team with Review strings, restricted to this project and language. Project administrators are not automatically language reviewers.</p>{% endif %}
+{% else %}<p>This pack supplies fonts with English firmware strings. It needs font review, but no wording reviewer.</p>{% endif %}
+<h2>Font and license review</h2>
+{% if data.fontApproval %}<p>Approved by {{ data.fontApproval.approvedBy }} on {{ data.fontApproval.approvedAt }}.</p><p>{{ data.fontApproval.note }}</p>{% else %}<p>The current fonts have not been approved, or their inputs or the maintainer's permissions changed.</p>{% endif %}
+<p>Review these files, the editor's watch preview and a draft on a watch. Every text style must compile. Accept missing characters only when that gap is deliberate.</p>
+{% if assets %}<table class="table"><thead><tr><th>Style</th><th>Font</th><th>License</th></tr></thead><tbody>{% for asset in assets %}<tr><td>{{ asset.slot }}</td><td><a href="{{ asset.font_url }}">{{ asset.font }}</a></td><td>{% if asset.license_url %}<a href="{{ asset.license_url }}">{{ asset.license }}</a>{% else %}Missing license{% endif %}</td></tr>{% endfor %}</tbody></table>{% else %}<p>Only built-in firmware fonts are assigned.</p>{% endif %}
+{% if maintainer %}
+<form method="post" action="{% url 'pebble-publication-check' locale %}">{% csrf_token %}{% if not translation %}<label for="coverage-language">Language these fonts cover</label><select id="coverage-language" name="coverage_language" class="form-select" required><option value="">Choose a language</option>{% for language in languages %}<option value="{{ language.code }}" {% if data.coverageLanguage == language.code %}selected{% endif %}>{{ language.name }}</option>{% endfor %}</select>{% endif %}<button type="submit" class="btn btn-secondary mt-2">Build draft for font review</button></form>
+{% if job %}
+<p class="mt-3"><a href="{% url 'pebble-job' job.pk %}">Latest reviewed draft and check results</a></p>
+{% if job.report.ok and job_current %}
+<p><a href="{% url 'pebble-job-download' job.pk %}">Download this draft to test on a watch</a></p>
+{% for gap in missing %}<details><summary>{{ gap.slot }}: missing characters to review</summary><p>{{ gap.characters }}</p></details>{% endfor %}
+{% for issue in job.report.issues %}<p>{{ issue.message }}</p>{% endfor %}
+<form method="post" action="{% url 'pebble-publication-approve' locale %}" class="mt-3">{% csrf_token %}{{ form.job }}<p>{{ form.redistribution }} {{ form.redistribution.label }}</p><p>{{ form.rendering }} {{ form.rendering.label }}</p>{% if missing %}<p>{{ form.accept_gaps }} {{ form.accept_gaps.label }}</p>{% endif %}{% if unknown_baseline %}<p>{{ form.accept_unknown }} {{ form.accept_unknown.label }}</p>{% endif %}<p>{{ form.note.label_tag }}<br>{{ form.note }}</p><button type="submit" class="btn btn-primary">Approve these fonts for publication</button></form>
+{% elif not job_current %}<p>Fonts changed after this draft was built. Build and review a new draft before approval.</p>{% else %}<p>The draft checks failed. Fix the reported issues and build again before approval.</p>{% endif %}
+{% endif %}
+{% if data.fontApproval %}<form method="post" action="{% url 'pebble-publication-revoke' locale %}" class="mt-3">{% csrf_token %}<button type="submit" class="btn btn-secondary">Withdraw font approval</button></form>{% endif %}
+{% endif %}
+<p class="mt-3 small">New font/license/rendering inputs invalidate font approval. New missing characters hold publication until reviewed. Automated pack builds also recheck placeholders and coverage; a font approval alone does not publish a pack.</p>
+</div></div>
+{% endblock %}

@@ -158,9 +158,12 @@ class AssetStore:
             folder.mkdir(parents=True)
             (folder / "tintin.po").write_bytes(self.path(catalog).read_bytes())
             mapping["strings"]["file"] = "tintin.po"
+            licenses = sorted(self.path(Path(catalog).parent).glob("LICENSE*"))
             for entry in mapping["fonts"]:
                 if not entry.get("file"):
                     continue
+                if not entry.get("license") and len(licenses) == 1:
+                    entry["license"] = licenses[0].name
                 if (
                     not entry.get("license")
                     or not self.resource(catalog, entry["license"]).is_file()

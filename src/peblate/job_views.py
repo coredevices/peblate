@@ -35,8 +35,16 @@ def job_data(job):
         "source_revision": job.source_revision,
         "status_url": url + "?format=json",
         "page_url": url,
-        "translation_url": job.translation.get_translate_url(),
-        "retry_url": reverse("pebble-validate", args=[job.translation.language_code]),
+        "translation_url": job.translation.get_translate_url()
+        if job.translation
+        else reverse("pebble-publication-language", args=[job.locale]),
+        "publication_url": reverse("pebble-publication-language", args=[job.locale])
+        if job.locale
+        else None,
+        "retry_url": reverse("pebble-validate", args=[job.translation.language_code])
+        if job.translation
+        else reverse("pebble-publication-check", args=[job.locale]),
+        "coverage_language": job.coverage_language,
         "download_url": reverse("pebble-job-download", args=[job.pk])
         if job.status == "succeeded"
         and job.operation == "build"
@@ -44,6 +52,21 @@ def job_data(job):
         and job.report.get("ok")
         else None,
     }
+
+
+def submit_job(job):
+    try:
+        run_language_job.apply_async(args=[str(job.pk)], retry=False)
+    except Exception:
+        logging.getLogger(__name__).exception(
+            "Could not enqueue Peblate job %s", job.pk
+        )
+        LanguageJob.objects.filter(pk=job.pk, status="queued").update(
+            status="failed",
+            phase="Failed",
+            error="The job queue is unavailable. Retry once the worker service is available.",
+            finished_at=timezone.now(),
+        )
 
 
 @never_cache
@@ -66,22 +89,7 @@ def enqueue(request, code):
             defaults={"status": "queued"},
         )
         if created:
-
-            def submit():
-                try:
-                    run_language_job.apply_async(args=[str(job.pk)], retry=False)
-                except Exception:
-                    logging.getLogger(__name__).exception(
-                        "Could not enqueue Peblate job %s", job.pk
-                    )
-                    LanguageJob.objects.filter(pk=job.pk, status="queued").update(
-                        status="failed",
-                        phase="Failed",
-                        error="The job queue is unavailable. Retry once the worker service is available.",
-                        finished_at=timezone.now(),
-                    )
-
-            transaction.on_commit(submit)
+            transaction.on_commit(lambda: submit_job(job))
     job.refresh_from_db()
     if request.POST.get("format") == "json":
         return JsonResponse(job_data(job), status=202)
@@ -94,7 +102,16 @@ def authorized_job(request, job_id):
         pk=job_id,
         owner=request.user,
     )
-    if (
+    if not job.translation:
+        from .publication import is_maintainer
+
+        if (
+            not job.component
+            or job.component.full_slug != enabled_component()
+            or not is_maintainer(request.user, job.component)
+        ):
+            raise PermissionDenied("Your Weblate permissions no longer allow this job.")
+    elif (
         job.translation.component.full_slug != enabled_component()
         or not capabilities(request.user, job.translation)["validate"]
     ):

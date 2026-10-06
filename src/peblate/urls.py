@@ -3,10 +3,48 @@
 
 from django.urls import include, path
 
-from . import auth_views, job_views, setup_views, views
+from . import (
+    auth_views,
+    job_views,
+    publication_views,
+    release_views,
+    setup_views,
+    views,
+)
 from .weblate_adapter import project_language_setup
 
 urlpatterns = [
+    path("pebble/publication/", publication_views.dashboard, name="pebble-publication"),
+    path(
+        "pebble/publication/<str:locale>/",
+        publication_views.language,
+        name="pebble-publication-language",
+    ),
+    path(
+        "pebble/publication/<str:locale>/check/",
+        publication_views.check,
+        name="pebble-publication-check",
+    ),
+    path(
+        "pebble/publication/<str:locale>/approve/",
+        publication_views.approve,
+        name="pebble-publication-approve",
+    ),
+    path(
+        "pebble/publication/<str:locale>/revoke/",
+        publication_views.revoke,
+        name="pebble-publication-revoke",
+    ),
+    path(
+        "pebble/publication/<str:locale>/asset/<str:slot>/<str:kind>/",
+        publication_views.asset,
+        name="pebble-publication-asset",
+    ),
+    path(
+        "api/pebble/release/<str:code>/",
+        release_views.release_evidence,
+        name="pebble-release-evidence",
+    ),
     path("accounts/login/", auth_views.pebble_login, name="login"),
     path(
         "accounts/login/existing/",

@@ -12,8 +12,9 @@
 {% if job.report.progress %}<p>{{ job.report.progress.translated }} / {{ job.report.progress.total }} strings translated.</p>{% endif %}
 {% for issue in job.report.issues %}<p>{{ issue.message }}</p>{% endfor %}
 {% if job.download_url %}<p><a href="{{ job.download_url }}">Download draft .pbl</a></p><p>This draft has not been published. Results expire after 24 hours.</p>{% endif %}
+{% if job.publication_url %}<p><a href="{{ job.publication_url }}">Publication status and font review</a></p>{% endif %}
 {% if job.status == "failed" or job.status == "succeeded" %}
-<form method="post" action="{{ job.retry_url }}">{% csrf_token %}<input type="hidden" name="action" value="{{ job.operation }}"><button class="btn btn-primary" type="submit">Start a new job with saved changes</button></form>
+<form method="post" action="{{ job.retry_url }}">{% csrf_token %}<input type="hidden" name="action" value="{{ job.operation }}"><input type="hidden" name="coverage_language" value="{{ job.coverage_language }}"><button class="btn btn-primary" type="submit">Start a new job with saved changes</button></form>
 {% endif %}
 </div></div>
 {% endblock %}

@@ -19,7 +19,14 @@ def expires_at():
 class LanguageJob(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
-    translation = models.ForeignKey("trans.Translation", on_delete=models.CASCADE)
+    translation = models.ForeignKey(
+        "trans.Translation", on_delete=models.CASCADE, null=True
+    )
+    component = models.ForeignKey(
+        "trans.Component", on_delete=models.CASCADE, null=True
+    )
+    font_input_hash = models.CharField(max_length=64, blank=True)
+    coverage_language = models.CharField(max_length=80, blank=True)
     operation = models.CharField(max_length=10)
     status = models.CharField(max_length=10, default="queued")
     phase = models.CharField(max_length=120, default="Waiting for a worker")
@@ -58,5 +65,34 @@ class FontOwnership(models.Model):
         constraints = (
             models.UniqueConstraint(
                 fields=["translation", "slot"], name="peblate_font_assignment"
+            ),
+        )
+
+
+class PublicationSettings(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    component = models.OneToOneField("trans.Component", on_delete=models.CASCADE)
+    enabled = models.BooleanField(default=False)
+    minimum_approved_percent = models.PositiveSmallIntegerField(default=80)
+
+
+class FontApproval(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    component = models.ForeignKey("trans.Component", on_delete=models.CASCADE)
+    locale = models.CharField(max_length=80)
+    approved_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True
+    )
+    approved_at = models.DateTimeField(auto_now=True)
+    input_hash = models.CharField(max_length=64)
+    coverage_language = models.CharField(max_length=80, blank=True)
+    accepted_missing_characters = models.JSONField(default=dict)
+    unknown_baseline_accepted = models.BooleanField(default=False)
+    note = models.TextField()
+
+    class Meta:
+        constraints = (
+            models.UniqueConstraint(
+                fields=["component", "locale"], name="peblate_font_approval"
             ),
         )
