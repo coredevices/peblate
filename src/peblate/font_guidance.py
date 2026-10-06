@@ -11,6 +11,7 @@ from pebble_language_tools.language_characters import (
     language_characters,
     with_shaping_forms,
 )
+from pebble_language_tools.pack_format import SPECIALIZED_FONT_SLOTS
 
 
 @lru_cache(maxsize=1)
@@ -29,6 +30,8 @@ def baseline_coverage(code):
         if chr(cp).isprintable() and not uses_emoji_font(cp)
     }
     return {
-        name: len(required - set(font["codepoints"]))
+        name: 0
+        if name in SPECIALIZED_FONT_SLOTS
+        else len(required - set(font["codepoints"]))
         for name, font in builtin_coverage()["fonts"].items()
     }
