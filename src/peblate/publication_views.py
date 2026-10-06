@@ -12,7 +12,7 @@ from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_POST
 from pebble_language_tools.lang_commands import resolve_font_entries
 from pebble_language_tools.release_policy import asset as safe_asset
-from pebble_language_tools.release_policy import font_inputs, gaps
+from pebble_language_tools.release_policy import font_inputs, gaps, has_custom_fonts
 from weblate.lang.models import Language
 
 from .models import FontApproval, LanguageJob, PublicationSettings
@@ -111,6 +111,7 @@ def dashboard(request):
                 "url": reverse("pebble-publication-language", args=[locale]),
                 "reviewers": data["reviewers"],
                 "font_approved": bool(data["fontApproval"]),
+                "custom_fonts": data["customFonts"],
                 "font_only": data["kind"] == "font-only",
                 "approved_percent": data["approvedPercent"],
                 "threshold_met": data["approvedPercent"]
@@ -238,6 +239,12 @@ def check(request, locale):
 def approve(request, locale):
     owner, store, catalog, translation = inputs_for_user(request, locale)
     require_maintainer(request.user, owner)
+    with store.lock:
+        if not has_custom_fonts(store.mapping(catalog, locale)):
+            return HttpResponse(
+                "Built-in fonts are checked automatically and do not need approval.",
+                status=400,
+            )
     form = FontApprovalForm(request.POST)
     if not form.is_valid():
         return HttpResponse(

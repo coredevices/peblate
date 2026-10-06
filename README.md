@@ -25,12 +25,13 @@ advanced font controls in the editor handle later corrections.
 ## Publication
 
 The editor links to **Language pack publication**. Project maintainers enable
-publication and review draft rendering, font licenses and coverage there.
+publication and approve new or changed custom fonts there. Built-in body and
+heading fonts are checked automatically; they need no manual approval.
 Language reviewers approve wording through Weblate's native review workflow and
 language-scoped teams.
 
 Published updates require a language reviewer, at least 80% approved strings,
-current font approval and passing build checks. Only approved strings ship.
+passing build checks and approval of any custom fonts. Only approved strings ship.
 Languages without reviewers remain community drafts; held updates retain their
 previous published pack. English font-only packs need font approval and coverage
 checks, but no wording reviewer.

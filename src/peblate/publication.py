@@ -5,7 +5,7 @@ from pathlib import Path
 
 import polib
 from pebble_language_tools.release_packs import completion
-from pebble_language_tools.release_policy import font_inputs
+from pebble_language_tools.release_policy import font_inputs, has_custom_fonts
 from weblate.auth.data import SELECTION_MANUAL
 from weblate.auth.models import TeamMembership
 from weblate.formats.exporters import PoExporter
@@ -122,11 +122,12 @@ def evidence(owner, locale):
     settings = PublicationSettings.objects.filter(component=owner).first()
     with store.lock:
         mapping = store.mapping(catalog_path, locale)
+        custom_fonts = has_custom_fonts(mapping)
         try:
             current_hash = font_inputs(store.path(catalog_path.parent), mapping)
         except (ValueError, OSError, KeyError):
             current_hash = None
-        approval = font_approval(owner, locale, current_hash)
+        approval = font_approval(owner, locale, current_hash) if custom_fonts else None
     native_reviews = owner.project.translation_review
     if translation:
         native_reviews = translation.enable_review
@@ -162,6 +163,7 @@ def evidence(owner, locale):
         == CommitPolicyChoices.APPROVED_ONLY,
         "reviewers": reviewers_for(translation) if translation else [],
         "fontApproval": approval,
+        "customFonts": custom_fonts,
         "catalog": str(catalog),
         "approvedStrings": progress["translatedStrings"],
         "totalStrings": progress["totalStrings"],

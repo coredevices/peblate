@@ -31,6 +31,17 @@ translator = User.objects.get(username="peblate-translator")
 glossary_folder = None
 job_ids = []
 font_folder = None
+saved_files = {}
+store = component_store(owner)
+locale_folder = Path(translation.get_filename()).parent
+mapping_path = locale_folder / "lang_map.json"
+
+
+def temporary_file(path, data):
+    saved_files.setdefault(path, path.read_bytes() if path.exists() else None)
+    path.write_bytes(data)
+
+
 base = "/pebble/publication/"
 locale = Path(translation.get_filename()).parent.name
 page = base + locale + "/"
@@ -41,10 +52,19 @@ try:
         patch("celery.app.task.Task.apply_async"),
         patch("weblate.trans.models.Component.queue_background_task"),
     ):
+        mapping = store.mapping(
+            Path(translation.get_filename()).relative_to(store.root), locale
+        )
+        mapping["fonts"] = new_map(locale)["fonts"]
+        temporary_file(mapping_path, store.encode(mapping))
         client = Client()
         client.force_login(admin)
         assert client.get(base).status_code == 200
-        assert client.get(page).status_code == 200
+        builtin_page = client.get(page)
+        assert builtin_page.status_code == 200
+        assert b"No separate font or license approval is needed" in builtin_page.content
+        assert b'name="redistribution"' not in builtin_page.content
+        assert client.post(page + "approve/", {}).status_code == 400
         before = translation.unit_set.filter(state=STATE_APPROVED).count()
         assert (
             client.post(
@@ -123,10 +143,23 @@ try:
             and data["reviewEnabled"]
             and data["approvedOnlyCommits"]
         )
+        assert not data["customFonts"] and data["fontApproval"] is None
         exported = polib.pofile(data["catalog"])
         assert any(e.msgstr == "APPROVED TEST" for e in exported)
         assert not any(e.msgstr == "UNREVIEWED TEST" for e in exported)
         assert api.post(api_path, {}).status_code == 405
+        # Change only temporary local font files to exercise the custom-font branch.
+        fixture = Path("/prototype/hebrew-fonts/Heebo-Regular.ttf").read_bytes()
+        temporary_file(locale_folder / "publication-test-font.ttf", fixture)
+        temporary_file(
+            locale_folder / "publication-test-license.txt",
+            b"Test redistribution license",
+        )
+        mapping["fonts"][0].update(
+            file="publication-test-font.ttf", license="publication-test-license.txt"
+        )
+        temporary_file(mapping_path, store.encode(mapping))
+        assert evidence(owner, locale)["customFonts"]
         # Build a real private draft without changing Git or review states.
         safe_catalog = polib.POFile()
         safe_catalog.metadata = polib.pofile(translation.get_filename()).metadata
@@ -182,7 +215,11 @@ try:
         original.metadata = dict(safe_catalog.metadata)
         original.append(polib.POEntry(msgid="Hello", msgstr="MUST NOT SHIP"))
         original.save(str(font_folder / "tintin.po"))
-        (font_folder / "lang_map.json").write_bytes(store.encode(new_map(font_locale)))
+        font_mapping = new_map(font_locale)
+        font_mapping["fonts"][0].update(file="font.ttf", license="license.txt")
+        (font_folder / "font.ttf").write_bytes(fixture)
+        (font_folder / "license.txt").write_text("Test redistribution license")
+        (font_folder / "lang_map.json").write_bytes(store.encode(font_mapping))
         font_page = base + font_locale + "/"
         assert client.get(font_page).status_code == 200
         assert (
@@ -229,6 +266,11 @@ try:
         assert not any(entry.msgstr == "MUST NOT SHIP" for entry in mo)
         transaction.set_rollback(True)
 finally:
+    for path, original in saved_files.items():
+        if original is None:
+            path.unlink(missing_ok=True)
+        else:
+            path.write_bytes(original)
     for job_id in job_ids:
         shutil.rmtree(job_folder(job_id), ignore_errors=True)
     if font_folder:
@@ -238,5 +280,5 @@ finally:
     ):
         shutil.rmtree(glossary_folder, ignore_errors=True)
 print(
-    "PASS: Weblate settings, native scoped reviewers, approved-only API, draft build, stale-input protection, maintainer-only approvals, revocation and CSRF"
+    "PASS: automatic built-in font checks, custom-font approval UI, Weblate settings, native scoped reviewers, approved-only API, draft build, stale-input protection, maintainer-only approvals, revocation and CSRF"
 )
