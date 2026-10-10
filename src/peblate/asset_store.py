@@ -40,7 +40,13 @@ class AssetStore:
         changed = {
             name: data
             for name, data in contents.items()
-            if not self.path(name).exists() or self.path(name).read_bytes() != data
+            if (data is None and self.path(name).exists())
+            or (
+                data is not None
+                and (
+                    not self.path(name).exists() or self.path(name).read_bytes() != data
+                )
+            )
         }
         if not changed:
             return False
@@ -56,9 +62,12 @@ class AssetStore:
         try:
             for name, data in changed.items():
                 path = self.path(name)
-                path.parent.mkdir(parents=True, exist_ok=True)
-                path.write_bytes(data)
-            self.git(["add", "--", *names])
+                if data is None:
+                    path.unlink()
+                else:
+                    path.parent.mkdir(parents=True, exist_ok=True)
+                    path.write_bytes(data)
+            self.git(["add", "--all", "--", *names])
             # --only keeps unrelated staged translations out of this asset commit.
             self.git(["commit", "--only", "-m", message, "--", *names])
         except Exception:
@@ -75,6 +84,8 @@ class AssetStore:
     def ensure_mapping(self, catalog, code):
         with self.lock:
             mapping = self.mapping(catalog, code)
+            if self.path(Path(catalog).with_name("lang_map.json")).exists():
+                return mapping
             self._commit(
                 {str(Path(catalog).with_name("lang_map.json")): self.encode(mapping)},
                 f"Initialize {code} language-pack resources",
@@ -84,6 +95,69 @@ class AssetStore:
     @staticmethod
     def encode(mapping):
         return (json.dumps(mapping, ensure_ascii=False, indent=2) + "\n").encode()
+
+    def unused_assets(self, catalog, mapping):
+        """Find tracked, unused font assets in this locale after a mapping change.
+
+        Other languages can reference this locale's files. Only Git-tracked fonts,
+        hashed licenses and resources from the old map are eligible for removal.
+        """
+        map_path = Path(catalog).with_name("lang_map.json")
+        maps = set(
+            filter(
+                None, self.git(["ls-files", "-z", "--", "*/lang_map.json"]).split("\0")
+            )
+        )
+        maps.update(
+            str(path.relative_to(self.root))
+            for path in self.root.glob("*/lang_map.json")
+        )
+        maps.add(str(map_path))
+        referenced = set()
+        for name in maps:
+            resource_map = (
+                mapping
+                if name == str(map_path)
+                else json.loads(self.path(name).read_text())
+            )
+            for entry in resource_map.get("fonts", []):
+                for key in ("file", "license", "characterList"):
+                    if entry.get(key):
+                        referenced.add(self.resource(Path(name), entry[key]).resolve())
+                if entry.get("file") and not entry.get("license"):
+                    licenses = list(self.path(Path(name).parent).glob("LICENSE*"))
+                    if len(licenses) == 1:
+                        referenced.add(licenses[0].resolve())
+        folder = self.path(Path(catalog).parent)
+        tracked = set(
+            filter(
+                None,
+                self.git(["ls-files", "-z", "--", str(Path(catalog).parent)]).split(
+                    "\0"
+                ),
+            )
+        )
+        candidates = {
+            name
+            for name in tracked
+            if Path(name).suffix.lower() in (".ttf", ".otf", ".ttc", ".license")
+        }
+        old = self.mapping(catalog, "")
+        for entry in old.get("fonts", []):
+            for key in ("file", "license", "characterList"):
+                if entry.get(key):
+                    path = self.resource(catalog, entry[key])
+                    name = str(path.relative_to(self.root))
+                    if name in tracked:
+                        candidates.add(name)
+        return {
+            name: None
+            for name in sorted(candidates)
+            if self.path(name).is_file()
+            and not self.path(name).is_symlink()
+            and self.path(name).resolve().is_relative_to(folder.resolve())
+            and self.path(name).resolve() not in referenced
+        }
 
     def upload(self, catalog, code, slot, font, license_data, font_name, license_name):
         with self.lock:
@@ -110,6 +184,7 @@ class AssetStore:
             )
             self._commit(
                 {
+                    **self.unused_assets(catalog, mapping),
                     font_path: font,
                     license_path: license_data,
                     str(Path(catalog).with_name("lang_map.json")): self.encode(mapping),
@@ -126,7 +201,7 @@ class AssetStore:
             if language:
                 mapping["strings"]["lang"] = language
             mapping["fonts"] = json.loads((folder / "fonts.json").read_text())
-            contents = {}
+            contents = self.unused_assets(catalog, mapping)
             for entry in mapping["fonts"]:
                 for key in ("file", "license", "characterList"):
                     if entry.get(key):

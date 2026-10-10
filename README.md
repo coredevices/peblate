@@ -101,5 +101,6 @@ templates and uses Weblate's internal APIs; run integration tests before upgrade
 
 Fonts, licenses and maps are committed together in Weblate's component checkout.
 Uploads use content hashes, share identical assets and leave pushing to Weblate.
+Replacing fonts removes tracked font assets and licenses that no map still uses.
 Compiled fonts, previews and job results stay in the cache. Draft builds use
 private snapshots and do not commit translations or change their approval state.

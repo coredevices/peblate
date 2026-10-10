@@ -208,15 +208,20 @@ def preview(request, slot):
 
 
 def install_creation_fonts(sender, translation, **kwargs):
+    if translation.component.full_slug != enabled_component():
+        return
     draft = creation_draft.get()
+    store = component_store(translation.component)
+    catalog = Path(translation.get_filename()).relative_to(store.root)
     if (
         not draft
         or translation.component_id != draft["component"]
         or translation.language.code != draft["language"]
     ):
+        # Native language creation also runs here when no font upload was needed.
+        # Draft snapshots can synthesize a map, but published packs need it in Git.
+        store.ensure_mapping(catalog, translation.language.code)
         return
-    store = component_store(translation.component)
-    catalog = Path(translation.get_filename()).relative_to(store.root)
     with store.lock, transaction.atomic():
         store.install_prepared(catalog, draft["folder"], language=draft["language"])
         mapping = store.mapping(catalog, draft["language"])

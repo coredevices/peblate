@@ -332,5 +332,34 @@ with (
             print(
                 "PASS: Chinese font aliases, extra date font, semantic locale, and editor preview preserved"
             )
+            for code, locale in (("de", "de_DE"), ("nb", "nb_NO")):
+                response = client.post(url, {"lang": code})
+                assert response.status_code == 302, response.content[:1500]
+                translation = owner.translation_set.get(language__code=code)
+                mapping_path = Path(translation.get_filename()).with_name(
+                    "lang_map.json"
+                )
+                mapping = json.loads(mapping_path.read_text())
+                assert mapping["strings"] == {
+                    "lang": locale,
+                    "name": "STRINGS",
+                    "file": "tintin.po",
+                }, mapping
+                assert mapping["fonts"] == []
+                tracked = git("ls-files").splitlines()
+                assert f"{locale}/lang_map.json" in tracked
+                assert f"{locale}/tintin.po" in tracked
+                assert not FontOwnership.objects.filter(
+                    translation=translation
+                ).exists()
+            # Native API creation must initialize resources too, without a wizard draft.
+            owner.add_new_language(
+                Language.objects.get(code="fr"), None, show_messages=False
+            )
+            assert "fr_FR/lang_map.json" in git("ls-files").splitlines()
+            assert not git("status", "--porcelain")
+            print(
+                "PASS: built-in-font languages commit resource maps through wizard and native creation"
+            )
     finally:
         _remove_project(project.pk, None)
