@@ -230,7 +230,7 @@ assert all(
     for font in report["fonts"]
     if font["slot"] in text_slots
 )
-print("All ten text styles covered; one shared font and license; ready to build")
+print("All editor font styles compiled; one shared font and license; ready to build")
 
 # A separate clone has no service cache, hard links, or uncommitted files.
 clone = Path(asset_temp.name) / "fresh-clone"

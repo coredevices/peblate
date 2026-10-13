@@ -23,6 +23,7 @@ from django.views.decorators.http import require_POST
 from weblate.vcs.base import RepositoryError
 
 from .font_permissions import affected_slots, font_access, record_ownership
+from .font_styles import SLOTS
 from .permissions import require_capability
 from .weblate_adapter import (
     component,
@@ -31,18 +32,6 @@ from .weblate_adapter import (
 )
 
 CACHE_ROOT = Path(settings.PEBLATE_CACHE_ROOT)
-SLOTS = (
-    ("GOTHIC_14_EXTENDED", "Small text · 14 px"),
-    ("GOTHIC_14_BOLD_EXTENDED", "Small bold text · 14 px"),
-    ("GOTHIC_18_EXTENDED", "Body text · 18 px"),
-    ("GOTHIC_18_BOLD_EXTENDED", "Body bold text · 18 px"),
-    ("GOTHIC_24_EXTENDED", "Large text · 24 px"),
-    ("GOTHIC_24_BOLD_EXTENDED", "Large bold text · 24 px"),
-    ("GOTHIC_28_EXTENDED", "Heading · 28 px"),
-    ("GOTHIC_28_BOLD_EXTENDED", "Bold heading · 28 px"),
-    ("GOTHIC_36_EXTENDED", "Large heading · 36 px"),
-    ("GOTHIC_36_BOLD_EXTENDED", "Large bold heading · 36 px"),
-)
 
 
 def translation_for(code):

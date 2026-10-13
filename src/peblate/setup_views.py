@@ -22,10 +22,11 @@ from weblate.trans.forms import get_new_component_language_form
 from weblate.trans.views.basic import new_language
 from weblate.vcs.base import RepositoryError
 
+from .font_guidance import baseline_coverage
 from .font_permissions import record_ownership
+from .font_styles import ALPHABET_SLOTS, NUMBER_SLOTS, SLOTS, TEXT_SLOTS, base_font_path
 from .permissions import require_capability
-from .setup_fonts import TEXT_SLOTS, font_packs, requirements, reuse_pack
-from .views import SLOTS
+from .setup_fonts import font_packs, requirements, reuse_pack
 from .weblate_adapter import component, component_store, enabled_component
 
 creation_draft = ContextVar("peblate_creation_draft", default=None)
@@ -107,7 +108,7 @@ def prepare(request):
                 if pack not in {item["code"] for item in font_packs(store.root, code)}:
                     raise ValueError("Choose a suggested font pack.")
                 entries = reuse_pack(store.root, pack, folder)
-        else:
+        elif request.FILES.get("font") or request.FILES.get("bold"):
             from .font_upload import validate_upload
 
             regular, license_data, regular_name, license_name = validate_upload(
@@ -132,8 +133,36 @@ def prepare(request):
                     else regular_name,
                     "license_original_name": license_name,
                 }
-                for slot in TEXT_SLOTS
+                for slot in ALPHABET_SLOTS
             ]
+        else:
+            coverage = baseline_coverage(code)
+            if coverage and any(coverage[slot] for slot in ALPHABET_SLOTS):
+                raise ValueError(
+                    "Upload a text font and its license, or choose a font pack."
+                )
+            entries = []
+        numbers = request.FILES.get("numbers")
+        if numbers:
+            from .font_upload import validate_upload
+
+            data, license_data, name, license_name = validate_upload(
+                numbers, request.FILES.get("numbers_license")
+            )
+            (folder / "numbers.ttf").write_bytes(data)
+            (folder / "numbers.license").write_bytes(license_data)
+            entries = [entry for entry in entries if entry["name"] not in NUMBER_SLOTS]
+            entries.extend(
+                {
+                    "name": slot,
+                    "file": "numbers.ttf",
+                    "license": "numbers.license",
+                    "extended": True,
+                    "original_name": name,
+                    "license_original_name": license_name,
+                }
+                for slot in NUMBER_SLOTS
+            )
         (folder / "fonts.json").write_text(json.dumps(entries))
         result = subprocess.run(
             [sys.executable, "-m", "peblate.setup_fonts", str(folder), code],
@@ -167,11 +196,7 @@ def prepare(request):
                     {
                         **style,
                         "label": dict(SLOTS)[style["name"]],
-                        "base_url": static(
-                            "pebble/renderer/"
-                            + style["name"].removesuffix("_EXTENDED")
-                            + ".pbf"
-                        ),
+                        "base_url": static(base_font_path(style["name"])),
                         "preview_url": reverse(
                             "pebble-setup-preview", args=[style["name"]]
                         ),
@@ -248,8 +273,6 @@ def language_setup(request, project, component):
         )
     owner, selected = selection(request, codes[0])
     _, required = requirements(selected.code)
-    from .font_guidance import baseline_coverage
-
     coverage = baseline_coverage(selected.code)
     needs_fonts = coverage and any(coverage[name] for name in TEXT_SLOTS)
     token = request.POST.get("font_review", "")

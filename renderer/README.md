@@ -23,5 +23,19 @@ Deployment should download a versioned renderer bundle from firmware CI.
 checks blank input, ordinary text, umlauts, and missing-glyph fallback.
 It does not establish Hebrew or Arabic glyph coverage.
 
+The nine LECO base fonts in `src/peblate/static/pebble/leco` are copied unchanged
+from `resources/normal/base/pbf` at PebbleOS
+`daa377d8a3d5a1eda69a8d0d2f54c5b4c5b2cbcd`. Their SHA-256 hashes and glyph
+coverage match `pebbleos-translations/data/builtin_font_coverage.json`. They are
+bundled in the Peblate wheel so LECO previews also work with renderer artifacts
+that only contain Gothic base fonts. Updating these files requires updating
+the coverage snapshot and rerunning the font tests and `leco-smoke.cjs`.
+
+`node renderer/leco-smoke.cjs runtime/leco` checks all nine base fonts and the
+Russian Health labels against the WASM renderer. Supply the compiled
+`LECO_20_BOLD_NUMBERS_EXTENDED.pbf` and
+`LECO_26_BOLD_NUMBERS_AM_PM_EXTENDED.pbf` in `runtime/leco` (from the editor's
+preview endpoints or the pack compiler).
+
 `extension-smoke.cjs` uses the PBF emitted by the Weblate smoke test and checks
 that Hebrew pixels change with the extension while Latin base glyphs stay identical.

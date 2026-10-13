@@ -19,6 +19,7 @@
     <p class="text-body-secondary small">Follows the translation field you’re editing, including unsaved text.</p>
     <label for="pebble-style" class="form-label">Preview text style</label>
     <select id="pebble-style" class="form-select form-select-sm">{% for slot in slots %}<option value="{{ slot.name }}" {% if slot.name == 'GOTHIC_18_EXTENDED' %}selected{% endif %}>{{ slot.label }}</option>{% endfor %}</select>
+    <p class="small">LECO styles display numbers and translated unit labels, such as hours, minutes and heart rate. Preview those labels separately; alphabet coverage checks do not apply to these styles.</p>
     <div class="pebble-watch"><div class="pebble-screen"><canvas id="pebble-fw-preview" width="144" height="168" aria-label="Firmware text preview"></canvas><div id="pebble-preview-text" dir="auto"></div></div></div>
     <p id="pebble-font-status" class="small text-body-secondary"></p>
     <p class="small text-body-secondary">Firmware text rendering in a sample 144 × 168 text box. Check that the text is readable and fits. Full watch-screen layouts still need review.</p>

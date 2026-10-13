@@ -14,10 +14,7 @@ from pebble_language_tools.language_characters import (
 )
 
 from .font_guidance import builtin_coverage
-
-TEXT_SLOTS = tuple(
-    name for name in builtin_coverage()["fonts"] if name.startswith("GOTHIC_")
-)
+from .font_styles import ALPHABET_SLOTS, NUMBER_SLOTS, TEXT_SLOTS
 
 
 def requirements(code):
@@ -64,7 +61,9 @@ def pack_entries(root, pack, *, resolve=True):
 def font_packs(root, code):
     _, required = requirements(code)
     base = builtin_coverage()["fonts"]
-    missing = {slot: required - set(base[slot]["codepoints"]) for slot in TEXT_SLOTS}
+    missing = {
+        slot: required - set(base[slot]["codepoints"]) for slot in ALPHABET_SLOTS
+    }
     total = sum(map(len, missing.values()))
     if not total:
         return []
@@ -150,7 +149,13 @@ def compile_fonts(folder, code):
     for slot in TEXT_SLOTS:
         data = compiled[resolved[slot]["name"]]
         (folder / (slot + ".pbf")).write_bytes(data)
-        missing = required - set(builtin_coverage()["fonts"][slot]["codepoints"])
+        # Numeric styles are previewed and compiled, but their actual unit labels
+        # need watch testing; they are not expected to cover the whole alphabet.
+        missing = (
+            set()
+            if slot in NUMBER_SLOTS
+            else required - set(builtin_coverage()["fonts"][slot]["codepoints"])
+        )
         missing -= set(pbf_codepoints(data)) if data else set()
         results.append(
             {

@@ -18,6 +18,7 @@ from weblate.lang.models import Language
 from weblate.trans.models import Component, Project
 from weblate.trans.tasks import _remove_project
 
+from peblate.font_styles import NUMBER_SLOTS, TEXT_SLOTS
 from peblate.language_policy import TRANSLATION_LANGUAGE_FILTER
 from peblate.models import FontOwnership
 
@@ -106,6 +107,19 @@ with (
             assert response.status_code == 200, response.content[:1500]
             draft = response.json()
             assert draft["ready"] and draft["complete"], draft
+            assert {style["name"] for style in draft["styles"]} == set(TEXT_SLOTS)
+            for slot in NUMBER_SLOTS:
+                style = next(
+                    style for style in draft["styles"] if style["name"] == slot
+                )
+                assert style["missing"] == 0
+                assert "/pebble/leco/" in style["base_url"]
+                response = client.post(
+                    f"/pebble/setup/preview/{slot}/",
+                    {"language": "he_IL", "token": draft["token"]},
+                )
+                assert response.status_code == 200
+                assert b"".join(response.streaming_content) == b""
             assert git("rev-parse", "HEAD") == before
             assert not (root / "he_IL").exists()
             print(
@@ -259,6 +273,63 @@ with (
             assert owner.translation_set.filter(language__code="fr").exists()
             print(
                 "PASS: upload plus mandatory license before creation; built-in-only creation"
+            )
+
+            # Number-font preparation is available even without alphabet gaps.
+            def number_upload(with_license=True):
+                files = {
+                    "language": "es",
+                    "numbers": SimpleUploadedFile(
+                        "Heebo.ttf", (fixtures / "en_IL/Heebo-Regular.ttf").read_bytes()
+                    ),
+                }
+                if with_license:
+                    files["numbers_license"] = SimpleUploadedFile(
+                        "LICENSE.txt",
+                        (fixtures / "en_IL/LICENSE.Heebo.txt").read_bytes(),
+                    )
+                return client.post("/pebble/setup/prepare/", files)
+
+            response = number_upload(with_license=False)
+            assert response.status_code == 400 and b"license" in response.content
+            response = number_upload()
+            assert response.status_code == 200, response.content[:1500]
+            number_draft = response.json()
+            assert number_draft["ready"] and number_draft["complete"], number_draft
+            assert (
+                client.post(
+                    url, {"lang": "es", "font_review": number_draft["token"]}
+                ).status_code
+                == 400
+            )
+            response = client.post(
+                url,
+                {
+                    "lang": "es",
+                    "font_review": number_draft["token"],
+                    "rendering_reviewed": "yes",
+                },
+            )
+            assert response.status_code == 302, response.content[:1500]
+            translation = owner.translation_set.get(language__code="es")
+            mapping = json.loads(
+                Path(translation.get_filename()).with_name("lang_map.json").read_text()
+            )
+            assert {entry["name"] for entry in mapping["fonts"]} == set(NUMBER_SLOTS)
+            assert (
+                FontOwnership.objects.filter(
+                    translation=translation, owner=admin
+                ).count()
+                == 9
+            )
+            for slot in NUMBER_SLOTS:
+                response = client.post(
+                    f"/pebble/{translation.language_code}/font/{slot}/pbf/",
+                    {"text": "min"},
+                )
+                assert response.status_code == 200, response.content[:1500]
+            print(
+                "PASS: optional LECO setup requires a license and rendering review, installs ownership and previews all nine styles"
             )
             response = client.post(
                 "/pebble/setup/prepare/", {"language": "ar", "pack": "en_SA"}

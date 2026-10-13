@@ -10,7 +10,7 @@
   const selected = () => new FormData(form).getAll('lang').filter(Boolean);
   const matchesSelection = () => selected().length === 1 && selected()[0] === code;
   function canCreate() {
-    return report && matchesSelection() && ((!report.styles.length && !draft) || (draft?.ready && el('reviewed').checked && (draft.complete || form.elements.gaps_reviewed.checked))) && (report.known || form.elements.unknown_reviewed.checked);
+    return report && matchesSelection() && ((!report.styles.length && !draft && !el('numbers').files.length) || (draft?.ready && el('reviewed').checked && (draft.complete || form.elements.gaps_reviewed.checked))) && (report.known || form.elements.unknown_reviewed.checked);
   }
   function buttons() {
     next.disabled = busy || (reviewing && !canCreate());
@@ -32,7 +32,7 @@
     el('pack-note').textContent = source.value ? `${source.value} keeps English strings and adds font coverage. Reuse only its fonts and license here; your new language will have its own translations.` : 'Choose fonts you have permission to distribute.';
   }
   source.addEventListener('change', changeSource);
-  ['font', 'bold', 'license'].forEach(name => el(name).addEventListener('change', invalidate));
+  ['font', 'bold', 'license', 'numbers', 'numbers_license'].forEach(name => el(name).addEventListener('change', invalidate));
   el('reviewed').addEventListener('change', buttons);
   form.elements.unknown_reviewed.addEventListener('change', buttons);
   form.elements.gaps_reviewed.addEventListener('change', buttons);
@@ -76,7 +76,8 @@
       }
       source.value = report.packs.find(pack => pack.complete && pack.licensed)?.code || '';
       changeSource(); el('sample').value = report.sample;
-      el('fonts').hidden = !report.styles.length;
+      el('fonts').hidden = false;
+      el('text-fonts').hidden = !report.styles.length;
       el('unknown').hidden = report.known; form.elements.unknown_reviewed.checked = false;
       el('language').hidden = true; el('review').hidden = false; el('back').hidden = false;
       reviewing = true; next.textContent = 'Create language'; el('status').textContent = '';
@@ -88,15 +89,16 @@
     invalidate(); busy = true; buttons();
     el('status').textContent = 'Checking font coverage and compiling all text styles…';
     // Keep the source fixed until this response has been reviewed.
-    source.disabled = true; el('upload').disabled = true;
+    source.disabled = true; el('upload').disabled = true; el('number-fonts').disabled = true;
     try {
       const data = new FormData(); data.set('csrfmiddlewaretoken', csrf); data.set('language', code);
       if (source.value) data.set('pack', source.value);
-      else for (const name of ['font', 'bold', 'license']) if (el(name).files[0]) data.set(name, el(name).files[0]);
+      else if (report.styles.length) for (const name of ['font', 'bold', 'license']) if (el(name).files[0]) data.set(name, el(name).files[0]);
+      for (const name of ['numbers', 'numbers_license']) if (el(name).files[0]) data.set(name, el(name).files[0]);
       draft = await (await checked(await fetch(panel.dataset.prepareUrl, {method:'POST', body:data}))).json();
       el('token').value = draft.token; el('preview').hidden = false;
       const gaps = draft.styles.filter(style => style.missing);
-      el('font-result').textContent = draft.complete ? 'All text styles compiled and cover the language baseline. Review the watch rendering below.' : `${gaps.length} of ${draft.styles.length} text styles have missing baseline characters. Review the gaps below.`;
+      el('font-result').textContent = draft.complete ? 'Fonts compiled and text styles cover the language baseline. Review the watch rendering below; LECO unit labels need a separate visual check.' : `${gaps.length} text styles have missing baseline characters. Review the gaps below; LECO unit labels need a separate visual check.`;
       el('gap-details').hidden = !gaps.length;
       el('gap-list').replaceChildren(...gaps.map(style => {
         const item = document.createElement('li'); item.textContent = `${style.label}: ${style.missing} missing characters (examples: ${style.examples})`; return item;
@@ -107,7 +109,7 @@
       el('status').textContent = draft.complete ? '' : 'Some baseline characters are missing. Choose another font, or review the gaps and accept this coverage before continuing.';
       await render();
     } catch (error) {el('status').textContent = error.message;}
-    finally {busy = false; source.disabled = false; el('upload').disabled = false; buttons();}
+    finally {busy = false; source.disabled = false; el('upload').disabled = false; el('number-fonts').disabled = false; buttons();}
   });
   async function render() {
     const current = ++version, activeDraft = draft, styleName = el('style').value;

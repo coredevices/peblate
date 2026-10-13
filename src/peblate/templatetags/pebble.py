@@ -7,9 +7,10 @@ from django.urls import reverse
 
 from peblate.font_guidance import baseline_coverage
 from peblate.font_permissions import font_access
+from peblate.font_styles import SLOTS, base_font_path
 from peblate.language_policy import translation_language_allowed
 from peblate.permissions import capabilities
-from peblate.views import SLOTS, font_assignment
+from peblate.views import font_assignment
 from peblate.weblate_adapter import enabled_component, language_store
 
 register = template.Library()
@@ -40,9 +41,7 @@ def pebble_editor_panel(context, unit):
             "baseline_missing": baseline[name] if baseline else None,
             "extension_url": reverse("pebble-font-pbf", args=[code, name]),
             "label": label,
-            "pbf_url": static(
-                "pebble/renderer/" + name.removesuffix("_EXTENDED") + ".pbf"
-            ),
+            "pbf_url": static(base_font_path(name)),
             "font_url": reverse("pebble-font", args=[code, name])
             if name in mapping
             else None,

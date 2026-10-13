@@ -11,6 +11,13 @@ translation. Languages covered by built-in fonts need no upload. The wizard
 also offers compatible fonts and licenses from existing English `en_*` font-only
 packs, which remain hidden as translation targets.
 
+The editor offers ten Gothic text styles and nine LECO number and unit styles.
+LECO assignments can reuse an existing font and license, or use a new upload.
+Language setup also accepts an optional number font with its own license for all
+nine LECO styles. Leaving it out preserves reused pack assignments or uses the
+built-in number fonts. LECO styles compile and can be previewed, but are excluded
+from full-alphabet coverage checks; test translated unit labels on a watch.
+
 In the editor, keep translations concise and check the watch preview. Save your
 changes before checking coverage or building a draft. Drafts include strings
 awaiting approval; strings marked as needing editing and unaccepted suggestions
@@ -90,6 +97,13 @@ Its generated files are ignored in Git and bundled in the wheel:
 ```sh
 uv build --wheel
 ```
+
+LECO preview base fonts are bundled separately in `static/pebble/leco`, with their
+source recorded in [the renderer guide](renderer/README.md). The translations
+wheel must include the 29-slot LECO pack format and matching coverage snapshot.
+Publish this support after PebbleOS #2391 lands.
+The refreshed coverage snapshot changes the font approval fingerprint, so
+maintainers must review and approve custom fonts again before publication.
 
 Build the `pebbleos-translations` wheel separately. The installed extension needs
 GNU gettext (`msgfmt`, included in the Weblate image), but no firmware checkout
