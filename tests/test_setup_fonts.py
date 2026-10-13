@@ -2,6 +2,7 @@ import hashlib
 import json
 import tempfile
 import unittest
+from importlib.resources import files
 from pathlib import Path
 from unittest.mock import patch
 
@@ -12,7 +13,7 @@ from peblate.font_guidance import baseline_coverage, builtin_coverage
 from peblate.font_styles import NUMBER_SLOTS, TEXT_SLOTS, base_font_path
 from peblate.setup_fonts import compile_fonts
 
-STATIC = Path(__file__).resolve().parents[1] / "src/peblate/static"
+STATIC = files("peblate") / "static"
 
 
 class SetupFontTests(unittest.TestCase):
