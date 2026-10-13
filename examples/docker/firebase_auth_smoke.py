@@ -184,6 +184,8 @@ with (
     assert b"Continue with Google" in provider.content
     assert b"Continue with Apple" in provider.content
     assert b"Continue with GitHub" in provider.content
+    assert b'id="pebble-send-verification"' in provider.content
+    assert b'id="pebble-check-verification"' in provider.content
     assert b"Account settings</a>" not in provider.content
     assert b"/accounts/login/existing/?next=/pebble/" in provider.content
     assert b'name="username"' not in provider.content
@@ -266,6 +268,10 @@ with (
         response = complete(public, token(**changes))
         assert response.status_code == 403, (changes, response.status_code)
         assert "_auth_user_id" not in public.session
+        if changes == {"email_verified": False}:
+            assert b"send a verification email" in response.content
+            assert b"Try Pebble sign-in again" in response.content
+            assert b'action="/accounts/login/pebble/" method="post"' in response.content
     bad_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
     forged = jwt.encode(
         jwt.decode(token(), options={"verify_signature": False}),

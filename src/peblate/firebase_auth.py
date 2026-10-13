@@ -61,7 +61,10 @@ def validate_principal(response):
         or not isinstance(response.get("email"), str)
         or not response["email"].strip()
     ):
-        raise PebbleLoginDenied("Pebble sign-in requires a verified email address.")
+        raise PebbleLoginDenied(
+            "Pebble sign-in requires a verified email address. "
+            "Try Pebble sign-in again to send a verification email and follow its link."
+        )
     project = settings.PEBLATE_FIREBASE_PROJECT_ID
     if (
         response.get("iss") != f"https://securetoken.google.com/{project}"

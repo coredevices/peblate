@@ -13,25 +13,39 @@
 <div class="container">
   <div class="card mx-auto" style="max-width: 36rem;">
     <div class="card-body">
-      <h1 class="h3">Sign in with Pebble</h1>
+      <h1 class="h3" id="pebble-login-title">Sign in with Pebble</h1>
       {% if error %}
         <p class="alert alert-warning" role="alert">{{ error }}</p>
+        <form action="{% url 'social:begin' 'pebble' %}" method="post">
+          {% csrf_token %}
+          <input type="hidden" name="next" value="{{ next }}">
+          <button class="btn btn-outline-primary" type="submit">Try Pebble sign-in again</button>
+        </form>
       {% elif available %}
-        {% if user.is_authenticated %}
-          <p>Connect your Pebble account to <strong>{{ user.username }}</strong> using the same email address. Your translations and permissions will stay with this Weblate account.</p>
-        {% else %}
-          {% if signup_open %}
-            <p>New here? Your verified Pebble account will create your Weblate profile. Sign-up is available only through Pebble Accounts.</p>
+        <div id="pebble-signin-options">
+          {% if user.is_authenticated %}
+            <p>Connect your Pebble account to <strong>{{ user.username }}</strong> using the same email address. Your translations and permissions will stay with this Weblate account.</p>
           {% else %}
-            <p>Pebble sign-in is available for existing Weblate accounts. Use the Pebble account you have already connected to Weblate. To connect it for the first time, sign in to Weblate and open Settings → Account.</p>
+            {% if signup_open %}
+              <p>New here? Your verified Pebble account will create your Weblate profile. Sign-up is available only through Pebble Accounts.</p>
+            {% else %}
+              <p>Pebble sign-in is available for existing Weblate accounts. Use the Pebble account you have already connected to Weblate. To connect it for the first time, sign in to Weblate and open Settings → Account.</p>
+            {% endif %}
           {% endif %}
-        {% endif %}
-        <div class="d-grid gap-2" id="pebble-providers">
-          <button class="btn btn-outline-primary" type="button" data-provider="google" disabled>Continue with Google</button>
-          <button class="btn btn-outline-primary" type="button" data-provider="apple" disabled>Continue with Apple</button>
-          <button class="btn btn-outline-primary" type="button" data-provider="github" disabled>Continue with GitHub</button>
+          <div class="d-grid gap-2" id="pebble-providers">
+            <button class="btn btn-outline-primary" type="button" data-provider="google" disabled>Continue with Google</button>
+            <button class="btn btn-outline-primary" type="button" data-provider="apple" disabled>Continue with Apple</button>
+            <button class="btn btn-outline-primary" type="button" data-provider="github" disabled>Continue with GitHub</button>
+          </div>
         </div>
         <p id="pebble-login-status" class="mt-3" role="status" aria-live="polite">Loading sign-in options…</p>
+        <div id="pebble-email-verification" hidden>
+          <p>Pebble Accounts needs to verify <strong id="pebble-verification-email"></strong>. Send a verification email, open its link, then return here to continue.</p>
+          <div class="d-grid gap-2">
+            <button class="btn btn-primary" type="button" id="pebble-send-verification" disabled>Send verification email</button>
+            <button class="btn btn-outline-primary" type="button" id="pebble-check-verification" disabled>I’ve verified my email</button>
+          </div>
+        </div>
         <noscript><p>Enable JavaScript to sign in with your Pebble account.</p></noscript>
         {{ firebase_config|json_script:"pebble-firebase-config" }}
         <form id="pebble-login-form" action="{{ complete_url }}" method="post">
@@ -42,7 +56,7 @@
       {% else %}
         <p>Pebble sign-in is not available yet.</p>
       {% endif %}
-      <p class="mt-3 mb-0"><a href="{% url 'pebble-existing-login' %}{% if next %}?next={{ next|urlencode }}{% endif %}">Existing sign-in</a></p>
+      <p class="mt-3 mb-0" id="pebble-existing-signin"><a href="{% url 'pebble-existing-login' %}{% if next %}?next={{ next|urlencode }}{% endif %}">Existing sign-in</a></p>
     </div>
   </div>
 </div>

@@ -55,6 +55,17 @@ pinned browser SDK as CloudPebble (10.12.2). It does not silently reuse shared
 Pebble cookies. Browser credentials are held in memory and discarded after
 obtaining an ID token; Weblate then owns the session.
 
+If Firebase has not verified the provider's email, the page offers **Send
+verification email** on a separate verification step; provider options and
+sign-up guidance are hidden after provider sign-in. Open the email's link,
+return to the same sign-in page, and select **I've verified my email**. The page
+refreshes the Firebase user and obtains a fresh token only after verification.
+This also applies to GitHub
+accounts; verification in GitHub alone is not sufficient when the Pebble
+Firebase account still reports an unverified email. Sending can be retried, and
+no Weblate session is created before verification. If the ten-minute sign-in
+flow expires, use **Try Pebble sign-in again** to restart it.
+
 Deploy the updated Peblate wheel, collect static files, run `weblate check` and
 restart before opening signup. The previous image cannot create new Pebble-backed
 accounts. Deploy this update while registration is closed, then enable it when
@@ -79,6 +90,12 @@ feature also invalidates Firebase-backed sessions; existing native sessions and
 recovery login remain available.
 
 ## Validation
+
+Run the browser-flow tests without Firebase requests or email deliveries:
+
+```sh
+node --test tests/test_login.cjs
+```
 
 The disposable local integration test validates real RSA-signed Firebase-format
 JWTs using test certificates. It exercises closed registration, Pebble-only
